@@ -131,13 +131,23 @@ com.njupt.kms
 
 ```bash
 # 后端（在 kms-backend/ 下）
-./mvnw spring-boot:run          # 启动
-./mvnw test                     # 跑测试
+mvn spring-boot:run             # 启动，监听 8090
+mvn test                        # 跑测试
 
 # 前端（在 kms-frontend/ 下）
 npm install
 npm run dev                     # 开发服务器
 npm run build                   # 生产构建
+```
+
+**端口约定：后端固定 8090。** 本机 8080 已被其他服务占用（实测），不要改回 8080。
+前端 `src/api/` 的 baseURL 必须与之一致。
+
+**数据库脚本必须带字符集参数执行**，否则 Windows 的 mysql 客户端会按控制台编码解析文件，中文写入失败：
+
+```bash
+mysql --default-character-set=utf8mb4 -u root -p < sql/schema.sql
+mysql --default-character-set=utf8mb4 -u root -p < sql/seed.sql
 ```
 
 改完代码**必须主动验证**（test / build / 手工走通主流程），不只改不验。

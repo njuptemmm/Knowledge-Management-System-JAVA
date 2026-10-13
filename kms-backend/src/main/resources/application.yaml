@@ -1,3 +1,8 @@
+server:
+  # 8080 已被本机其他服务占用（实测），固定使用 8090。
+  # 前端 kms-frontend 的 api 层必须与此一致。
+  port: 8090
+
 spring:
   application:
     name: kms

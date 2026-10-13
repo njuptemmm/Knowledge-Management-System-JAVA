@@ -92,10 +92,10 @@ v0.0.1 的目标只有一个：**在 2 周内交付一套功能完整、可演�
 └───────────────────────┬──────────────────────────────┘
                         │ REST / JSON  (§4.1)
 ┌───────────────────────▼──────────────────────────────┐
-│  M1 知识资产域      M2 内容接入域      M3 检索域        │
-│  KnowledgeService   IngestionService   SearchService  │
-│  CategoryService    ParserFactory                     │
-│  TagService                                           │
+│  M1 知识资产域    M2 内容接入域   M3 检索域   M5 问答域 │
+│  KnowledgeService IngestionService SearchService QaService
+│  CategoryService  ParserFactory                      │
+│  TagService                                          │
 │  ┌────────────────────────────────────────────────┐  │
 │  │  M0 平台支撑（横切）：认证 / Result / 异常 / 日志 │  │
 │  └────────────────────────────────────────────────┘  │
@@ -105,7 +105,15 @@ v0.0.1 的目标只有一个：**在 2 周内交付一套功能完整、可演�
    ┌────▼─────┐                   ┌─────▼────┐
    │ MySQL 8  │                   │  Redis   │
    └──────────┘                   └──────────┘
+                        │
+              ┌─────────▼──────────┐
+              │ 向量索引文件 + LLM  │   v0.1.0 新增（M5）
+              └────────────────────┘
 ```
+
+**M5 智能问答域为 v0.1.0 新增模块**（见 §12 Backlog 的 P0 项），设计见
+`docs/plan/2026-10-14-kms-rag.md`。它不拥有数据库表，只拥有一个持久化的向量索引文件
+与 Redis 会话命名空间。依赖方向为 M5 → M1（经 `KnowledgeSearchPort`），不反向。
 
 #### M1 知识资产域 —— 系统的记录源头（system of record）
 
@@ -193,6 +201,7 @@ public interface KnowledgeSearchPort {
 | M1 知识资产域 | `knowledge_item` `category` `tag` `item_tag` |
 | M2 内容接入域 | `attachment` |
 | M3 检索域 | 无 |
+| M5 智能问答域（v0.1.0） | 无（自有的向量索引文件与 Redis 会话命名空间不属数据库表） |
 
 违反此规则的检查方式：任何 Mapper 中出现非本模块表的 SQL，即为越界（`AdminMapper` 等跨表统计查询亦不例外，须改由拥有该表的模块提供接口）。
 
@@ -716,13 +725,14 @@ software/java-homework/
 
 以下为 v0.0.1 主动延后项，按预估价值排序。架构已为其预留扩展点。
 
-| 优先级 | 项 | 预留的扩展点 |
+| 优先级 | 项 | 状态 / 预留的扩展点 |
 |---|---|---|
-| P0 | RAG 智能问答 | M3 已是独立模块与独立接口；`attachment.parsed_text` 已是切块输入源；异步事件机制已就位 |
+| **P0** | **RAG 智能问答** | **已实施 —— v0.1.0，见 `docs/plan/2026-10-14-kms-rag.md`。** 落地为独立模块 M5，未并入 M3 |
 | P1 | 条目间语义关联（本体关系） | M1 新增 `item_relation` 表与 `RelationService`，不影响既有表 |
 | P1 | 分类树闭包表优化 | `category` 表结构可平滑迁移，查询接口不变 |
 | P2 | 知识版本管理 | `knowledge_item` 增 `version` 字段 + `item_version` 历史表 |
 | P2 | 视频内容解析 | `ParserFactory` 新增视频解析器实现即可接入 |
+| P2 | 附件内容进入 RAG 索引 | `attachment.parsed_text` 已是现成的切块输入源，M5 的 `ItemContentLoader` 扩展一处即可 |
 | P3 | Elasticsearch 检索 | `SearchService` 为接口，可新增 ES 实现类替换 |
 
 ---

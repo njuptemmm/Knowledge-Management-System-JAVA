@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.njupt.kms.knowledge.mapper.KnowledgeItemMapper">
+
+    <select id="selectPageVO" resultType="com.njupt.kms.knowledge.dto.KnowledgeListVO">
+        SELECT k.id,
+        k.title,
+        k.summary,
+        k.status,
+        k.category_id  AS categoryId,
+        c.name         AS categoryName,
+        u.nickname     AS authorName,
+        k.view_count   AS viewCount,
+        k.updated_at   AS updatedAt
+        FROM knowledge_item k
+        LEFT JOIN category c ON c.id = k.category_id
+        LEFT JOIN `user` u ON u.id = k.author_id
+        <where>
+            <if test="categoryIds != null and categoryIds.size() > 0">
+                AND k.category_id IN
+                <foreach collection="categoryIds" item="cid" open="(" separator="," close=")">#{cid}</foreach>
+            </if>
+            <if test="status != null and status != ''">
+                AND k.status = #{status}
+            </if>
+            <if test="tagId != null">
+                AND EXISTS (SELECT 1 FROM item_tag it WHERE it.item_id = k.id AND it.tag_id = #{tagId})
+            </if>
+            <choose>
+                <when test="visibleAuthorId != null">
+                    AND (k.status = 'PUBLISHED' OR k.author_id = #{visibleAuthorId})
+                </when>
+                <otherwise>
+                    AND k.status = 'PUBLISHED'
+                </otherwise>
+            </choose>
+        </where>
+        ORDER BY k.updated_at DESC, k.id DESC
+    </select>
+</mapper>

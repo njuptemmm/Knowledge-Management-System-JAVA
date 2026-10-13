@@ -1,10 +1,14 @@
 package com.njupt.kms.knowledge.service.impl;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.njupt.kms.common.BusinessException;
 import com.njupt.kms.knowledge.dto.KnowledgeDetailVO;
+import com.njupt.kms.knowledge.dto.KnowledgeListVO;
+import com.njupt.kms.knowledge.dto.KnowledgeQuery;
 import com.njupt.kms.knowledge.dto.KnowledgeSaveRequest;
 import com.njupt.kms.knowledge.entity.KnowledgeItem;
 import com.njupt.kms.knowledge.mapper.KnowledgeItemMapper;
+import com.njupt.kms.knowledge.service.CategoryService;
 import com.njupt.kms.knowledge.service.KnowledgeService;
 import com.njupt.kms.knowledge.service.TagService;
 import com.njupt.kms.security.CurrentUser;
@@ -13,6 +17,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 @Service
@@ -23,8 +29,11 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     public static final String STATUS_PUBLISHED = "PUBLISHED";
     public static final String STATUS_ARCHIVED = "ARCHIVED";
 
+    private static final int MAX_PAGE_SIZE = 100;
+
     private final KnowledgeItemMapper itemMapper;
     private final TagService tagService;
+    private final CategoryService categoryService;
 
     @Override
     @Transactional
@@ -74,12 +83,74 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     }
 
     @Override
+    public Page<KnowledgeListVO> page(KnowledgeQuery query) {
+        User current = CurrentUser.get();
+
+        // mine=true 时由 SQL 的 visibleAuthorId 分支放行自己的全部状态；
+        // 否则只返回 PUBLISHED。
+        Long visibleAuthorId = Boolean.TRUE.equals(query.getMine()) && current != null
+                ? current.getId()
+                : null;
+
+        // 点击父分类要能看到下级条目，因此取其全部后代 id
+        Collection<Long> categoryIds = query.getCategoryId() == null
+                ? null
+                : categoryService.descendantIds(query.getCategoryId());
+
+        Page<KnowledgeListVO> page = new Page<>(clampPage(query), clampSize(query));
+        return (Page<KnowledgeListVO>) itemMapper.selectPageVO(
+                page, categoryIds, query.getStatus(), query.getTagId(), visibleAuthorId);
+    }
+
+    @Override
     @Transactional
     public void delete(Long id) {
         KnowledgeItem item = requireExisting(id);
         assertWritable(item);
         tagService.replaceTags(id, List.of());
         itemMapper.deleteById(id);
+    }
+
+    @Override
+    @Transactional
+    public KnowledgeDetailVO publish(Long id) {
+        KnowledgeItem item = requireExisting(id);
+        assertWritable(item);
+        if (!STATUS_DRAFT.equals(item.getStatus())) {
+            throw new BusinessException("当前状态不允许发布");
+        }
+        item.setStatus(STATUS_PUBLISHED);
+        item.setPublishedAt(LocalDateTime.now());
+        itemMapper.updateById(item);
+        return toDetailVO(item);
+    }
+
+    @Override
+    @Transactional
+    public KnowledgeDetailVO archive(Long id) {
+        KnowledgeItem item = requireExisting(id);
+        assertWritable(item);
+        if (STATUS_ARCHIVED.equals(item.getStatus())) {
+            throw new BusinessException("当前状态不允许归档");
+        }
+        item.setStatus(STATUS_ARCHIVED);
+        item.setArchivedAt(LocalDateTime.now());
+        itemMapper.updateById(item);
+        return toDetailVO(item);
+    }
+
+    @Override
+    @Transactional
+    public KnowledgeDetailVO restore(Long id) {
+        KnowledgeItem item = requireExisting(id);
+        assertWritable(item);
+        if (!STATUS_ARCHIVED.equals(item.getStatus())) {
+            throw new BusinessException("当前状态不允许恢复");
+        }
+        item.setStatus(STATUS_DRAFT);
+        item.setArchivedAt(null);
+        itemMapper.updateById(item);
+        return toDetailVO(item);
     }
 
     @Override
@@ -101,6 +172,19 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         if (!current.isAdmin() && !item.getAuthorId().equals(current.getId())) {
             throw new BusinessException("无权操作他人的知识条目");
         }
+    }
+
+    private int clampPage(KnowledgeQuery query) {
+        Integer page = query.getPage();
+        return (page == null || page < 1) ? 1 : page;
+    }
+
+    private int clampSize(KnowledgeQuery query) {
+        Integer size = query.getSize();
+        if (size == null || size < 1) {
+            return 10;
+        }
+        return Math.min(size, MAX_PAGE_SIZE);
     }
 
     private KnowledgeDetailVO toDetailVO(KnowledgeItem item) {

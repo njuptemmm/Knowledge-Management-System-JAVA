@@ -5,6 +5,7 @@ import com.njupt.kms.knowledge.dto.KnowledgeDetailVO;
 import com.njupt.kms.knowledge.dto.KnowledgeSaveRequest;
 import com.njupt.kms.knowledge.entity.KnowledgeItem;
 import com.njupt.kms.knowledge.mapper.KnowledgeItemMapper;
+import com.njupt.kms.knowledge.service.CategoryService;
 import com.njupt.kms.knowledge.service.KnowledgeService;
 import com.njupt.kms.knowledge.service.TagService;
 import com.njupt.kms.knowledge.service.impl.KnowledgeServiceImpl;
@@ -35,7 +36,7 @@ class KnowledgeServiceTest {
     void setUp() {
         itemMapper = mock(KnowledgeItemMapper.class);
         tagService = mock(TagService.class);
-        knowledgeService = new KnowledgeServiceImpl(itemMapper, tagService);
+        knowledgeService = new KnowledgeServiceImpl(itemMapper, tagService, mock(CategoryService.class));
     }
 
     @AfterEach

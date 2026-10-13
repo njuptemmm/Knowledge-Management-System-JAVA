@@ -16,3 +16,19 @@ spring:
       host: localhost
       port: 6379
       # password: 你的 Redis 密码（本地通常不需要）
+
+  ai:
+    openai:
+      # Kimi (Moonshot) —— 仅用于问答生成。从 https://platform.moonshot.cn 获取
+      # 注意：kimi-k2.6 的 temperature 只能为 1，已在 application.yaml 固定
+      api-key: sk-YOUR_KIMI_API_KEY_HERE
+
+app:
+  rag:
+    # 配好下面两个值后改为 true
+    enabled: false
+    embedding:
+      # 火山方舟 (Volcengine Ark) —— 用于向量化。密钥从控制台获取
+      # 注意：该模型只支持 /embeddings/multimodal 端点，且一次请求只返回一条向量
+      base-url: https://ark.cn-beijing.volces.com/api/v3
+      api-key: YOUR_ARK_API_KEY_HERE

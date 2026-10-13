@@ -807,10 +807,25 @@ public class GlobalExceptionHandler {
 }
 ```
 
+- [ ] **Step 6b: 补充三个客户端错误处理器（实现期发现，已落地）**
+
+实测发现：请求体 JSON 畸形或编码不是 UTF-8 时，会落到兜底的 `Exception` 处理器，
+用户看到 HTTP 500 + "系统繁忙，请稍后重试"——但这是**客户端**问题，提示误导。
+
+在 `GlobalExceptionHandler` 中追加三个处理器，把这三类归入 `PARAM_ERROR`：
+
+| 异常 | 提示 |
+|---|---|
+| `HttpMessageNotReadableException` | 请求体格式错误，请检查 JSON 是否合法且为 UTF-8 编码 |
+| `MethodArgumentTypeMismatchException` | 参数 `{name}` 的格式不正确 |
+| `MissingServletRequestParameterException` | 缺少必要参数：`{name}` |
+
+对应的三条测试也加入 `GlobalExceptionHandlerTest`，因此该测试类的期望变为 **5 个用例**。
+
 - [ ] **Step 7: 运行测试确认通过**
 
 Run: `cd kms-backend && mvn -q test -Dtest=GlobalExceptionHandlerTest`
-Expected: `Tests run: 2, Failures: 0, Errors: 0`
+Expected: `Tests run: 5, Failures: 0, Errors: 0`
 
 - [ ] **Step 8: 提交**
 

@@ -2,11 +2,14 @@ package com.njupt.kms.common;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.stream.Collectors;
 
@@ -32,6 +35,31 @@ public class GlobalExceptionHandler {
         }
         log.warn("参数校验失败: {}", message);
         return Result.fail(ResultCode.PARAM_ERROR, message);
+    }
+
+    /**
+     * 请求体无法解析（JSON 语法错误、编码不是 UTF-8 等）。
+     * 这是客户端问题，归入 PARAM_ERROR 而不是系统异常——
+     * 否则用户看到"系统繁忙"会以为是服务端故障，无从下手。
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public Result<Void> handleUnreadableBody(HttpMessageNotReadableException e) {
+        log.warn("请求体解析失败: {}", e.getMessage());
+        return Result.fail(ResultCode.PARAM_ERROR, "请求体格式错误，请检查 JSON 是否合法且为 UTF-8 编码");
+    }
+
+    /** 路径变量或查询参数类型不匹配，例如 /api/knowledge/abc。 */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public Result<Void> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        log.warn("参数类型不匹配: name={} value={}", e.getName(), e.getValue());
+        return Result.fail(ResultCode.PARAM_ERROR, "参数 " + e.getName() + " 的格式不正确");
+    }
+
+    /** 缺少必填的查询参数或表单字段。 */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public Result<Void> handleMissingParam(MissingServletRequestParameterException e) {
+        log.warn("缺少请求参数: {}", e.getParameterName());
+        return Result.fail(ResultCode.PARAM_ERROR, "缺少必要参数：" + e.getParameterName());
     }
 
     /**

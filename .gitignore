@@ -1,0 +1,38 @@
+# ===== 敏感配置（严禁提交）=====
+application-local.yaml
+application-local.yml
+*.env
+.env.local
+
+# ===== Java / Maven =====
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# ===== Node / Vue =====
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# ===== 运行时产物 =====
+uploads/
+*.log
+logs/
+
+# ===== IDE =====
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== 压缩包（交付物单独生成，不入库）=====
+*.7z
+*.rar

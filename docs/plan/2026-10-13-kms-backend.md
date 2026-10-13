@@ -25,6 +25,9 @@
 - 敏感配置放 **`src/main/resources/application-local.yaml`**，该文件**禁止提交 git**
 - 模块只能读写自己拥有的表：`security` 拥有 `user`，`knowledge` 拥有 `knowledge_item` `category` `tag` `item_tag`，`ingestion` 拥有 `attachment`，`search` 无表
 - 不使用全局 `controller/` `service/` 大包
+- **Mockito 打桩 Mapper 时必须写显式类型**：MyBatis-Plus 3.5.10 的 `BaseMapper` 同时有 `insert(T)` 与 `insert(Collection<T>)` 重载，`any()` 无法推断，写成 `any(KnowledgeItem.class)` 这类显式形式。`updateById`、`deleteById` 同理
+- 后端监听端口 **8090**（本机 8080 被占用）
+- 执行 SQL 脚本必须带 `--default-character-set=utf8mb4`，否则 Windows 客户端会按控制台编码解析文件导致中文写入失败
 - 前端相关的一切**不在本计划范围**（见 `2026-10-13-kms-frontend.md`）
 
 ## 对 spec 的补充（本计划确立，spec 后续同步）

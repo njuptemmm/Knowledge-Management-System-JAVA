@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.njupt.kms.knowledge.mapper.KnowledgeSearchMapper">
+
+    <!-- 路径 A：含 CJK 的关键词 —— 走三个 ngram 全文索引分别求分再加权。
+         MySQL 要求 MATCH() 的列与某个全文索引的列完全一致，故必须分列书写。 -->
+    <sql id="fullTextScore">
+        (
+        #{wTitle}   * MATCH(k.title)   AGAINST (#{kw} IN NATURAL LANGUAGE MODE)
+        + #{wSummary} * MATCH(k.summary) AGAINST (#{kw} IN NATURAL LANGUAGE MODE)
+        + #{wContent} * MATCH(k.content) AGAINST (#{kw} IN NATURAL LANGUAGE MODE)
+        )
+    </sql>
+
+    <!-- 路径 B：纯 ASCII 的关键词 —— ngram 解析器不索引拉丁字符，MATCH 恒为 0 分，
+         故降级为 LIKE。权重取值与路径 A 相同，保证两种关键词下排序语义一致。
+         详见设计文档 §5.2 第 3 点与 §6.3.1。 -->
+    <sql id="likeScore">
+        (
+        CASE WHEN k.title   LIKE CONCAT('%', #{kw}, '%') THEN #{wTitle}   ELSE 0 END
+        + CASE WHEN k.summary LIKE CONCAT('%', #{kw}, '%') THEN #{wSummary} ELSE 0 END
+        + CASE WHEN k.content LIKE CONCAT('%', #{kw}, '%') THEN #{wContent} ELSE 0 END
+        )
+    </sql>
+
+    <select id="search" resultType="com.njupt.kms.knowledge.dto.KnowledgeSearchRow">
+        SELECT k.id,
+        k.title,
+        k.summary,
+        k.category_id AS categoryId,
+        c.name AS categoryName,
+        k.status,
+        k.updated_at AS updatedAt
+        <choose>
+            <when test="kw != null and kw != '' and useFullText">
+                , <include refid="fullTextScore"/> AS score
+            </when>
+            <when test="kw != null and kw != ''">
+                , <include refid="likeScore"/> AS score
+            </when>
+            <otherwise>
+                , 0 AS score
+            </otherwise>
+        </choose>
+        FROM knowledge_item k
+        LEFT JOIN category c ON c.id = k.category_id
+        <where>
+            <if test="kw != null and kw != '' and useFullText">
+                AND (
+                MATCH(k.title) AGAINST (#{kw} IN NATURAL LANGUAGE MODE)
+                OR MATCH(k.summary) AGAINST (#{kw} IN NATURAL LANGUAGE MODE)
+                OR MATCH(k.content) AGAINST (#{kw} IN NATURAL LANGUAGE MODE)
+                )
+            </if>
+            <if test="kw != null and kw != '' and !useFullText">
+                AND (
+                k.title LIKE CONCAT('%', #{kw}, '%')
+                OR k.summary LIKE CONCAT('%', #{kw}, '%')
+                OR k.content LIKE CONCAT('%', #{kw}, '%')
+                )
+            </if>
+            <if test="categoryIds != null and categoryIds.size() > 0">
+                AND k.category_id IN
+                <foreach collection="categoryIds" item="cid" open="(" separator="," close=")">#{cid}</foreach>
+            </if>
+            <if test="tagId != null">
+                AND EXISTS (SELECT 1 FROM item_tag it WHERE it.item_id = k.id AND it.tag_id = #{tagId})
+            </if>
+            <if test="contentType != null and contentType != ''">
+                AND k.content_type = #{contentType}
+            </if>
+            <if test="status != null and status != ''">
+                AND k.status = #{status}
+            </if>
+            <if test="from != null">
+                AND k.updated_at &gt;= #{from}
+            </if>
+            <if test="to != null">
+                AND k.updated_at &lt; DATE_ADD(#{to}, INTERVAL 1 DAY)
+            </if>
+            <choose>
+                <when test="visibleAuthorId != null">
+                    AND (k.status = 'PUBLISHED' OR k.author_id = #{visibleAuthorId})
+                </when>
+                <otherwise>
+                    AND k.status = 'PUBLISHED'
+                </otherwise>
+            </choose>
+        </where>
+        <choose>
+            <when test="sort == 'latest'">
+                ORDER BY k.updated_at DESC, k.id DESC
+            </when>
+            <when test="sort == 'hottest'">
+                ORDER BY k.view_count DESC, k.id DESC
+            </when>
+            <otherwise>
+                ORDER BY score DESC, k.updated_at DESC, k.id DESC
+            </otherwise>
+        </choose>
+    </select>
+
+    <!-- 命中条目的标签名，供前端展示。避免 N+1，一次查回。 -->
+    <select id="selectTagsOf" resultType="java.util.Map">
+        SELECT it.item_id AS itemId, t.name AS name
+        FROM item_tag it
+        JOIN tag t ON t.id = it.tag_id
+        WHERE it.item_id IN
+        <foreach collection="itemIds" item="iid" open="(" separator="," close=")">#{iid}</foreach>
+        ORDER BY t.name
+    </select>
+</mapper>

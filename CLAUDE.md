@@ -150,6 +150,20 @@ mysql --default-character-set=utf8mb4 -u root -p < sql/schema.sql
 mysql --default-character-set=utf8mb4 -u root -p < sql/seed.sql
 ```
 
+**用 curl 测中文接口时必须显式控制编码。** Git Bash 控制台是 GBK，`curl --data-urlencode "keyword=索引"`
+会把 GBK 字节当成 UTF-8 编码，服务端解出乱码，表现为「中文搜索恒返回 0 条」——
+看起来像后端 bug，实际是测试工具的问题。改用 Python 发请求：
+
+```bash
+python -I -c "
+import json, urllib.request, urllib.parse
+qs = urllib.parse.urlencode({'keyword': '索引'}, encoding='utf-8')
+print(json.loads(urllib.request.urlopen('http://localhost:8090/api/search?' + qs).read().decode()))
+"
+```
+
+同理，`curl -d '{\"name\":\"中文\"}'` 也会发出发送 GBK 字节导致 400（`Invalid UTF-8 start byte`）。
+
 改完代码**必须主动验证**（test / build / 手工走通主流程），不只改不验。
 验证时使用**对抗性思路**：除正常路径外，一并验证越权、边界输入、状态机非法跃迁、重复提交。
 

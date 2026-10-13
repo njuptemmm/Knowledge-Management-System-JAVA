@@ -35,9 +35,10 @@ public final class QaPrompts {
         StringBuilder builder = new StringBuilder();
 
         if (chunks == null || chunks.isEmpty()) {
+            // 在「没有资料」的位置就地重申规则，比只靠系统提示更不容易被模型忽略
             builder.append("""
                     【资料】
-                    没有检索到相关资料。
+                    没有检索到相关资料。请直接回答「知识库中没有相关内容」，不要凭常识作答。
 
                     """);
         } else {

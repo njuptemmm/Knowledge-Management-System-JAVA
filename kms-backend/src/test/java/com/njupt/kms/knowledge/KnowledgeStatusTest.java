@@ -31,7 +31,8 @@ class KnowledgeStatusTest {
     void setUp() {
         itemMapper = mock(KnowledgeItemMapper.class);
         knowledgeService = new KnowledgeServiceImpl(
-                itemMapper, mock(TagService.class), mock(CategoryService.class), mock(UserQueryPort.class));
+                itemMapper, mock(TagService.class), mock(CategoryService.class), mock(UserQueryPort.class),
+                mock(org.springframework.context.ApplicationEventPublisher.class));
         loginAs(2L, "USER");
     }
 

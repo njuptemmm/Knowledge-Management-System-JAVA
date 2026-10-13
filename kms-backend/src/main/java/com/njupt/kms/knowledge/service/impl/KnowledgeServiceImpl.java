@@ -2,6 +2,7 @@ package com.njupt.kms.knowledge.service.impl;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.njupt.kms.common.BusinessException;
+import com.njupt.kms.common.event.KnowledgeIndexEvent;
 import com.njupt.kms.knowledge.dto.KnowledgeDetailVO;
 import com.njupt.kms.knowledge.dto.KnowledgeListVO;
 import com.njupt.kms.knowledge.dto.KnowledgeQuery;
@@ -15,6 +16,7 @@ import com.njupt.kms.security.CurrentUser;
 import com.njupt.kms.security.User;
 import com.njupt.kms.security.UserQueryPort;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +38,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     private final TagService tagService;
     private final CategoryService categoryService;
     private final UserQueryPort userQueryPort;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -73,6 +76,10 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         itemMapper.updateById(item);
 
         tagService.replaceTags(id, request.getTagIds());
+        // 只有已发布的条目在索引里，草稿的编辑不必触发重建
+        if (STATUS_PUBLISHED.equals(item.getStatus())) {
+            eventPublisher.publishEvent(KnowledgeIndexEvent.upsert(id));
+        }
         return toDetailVO(item);
     }
 
@@ -111,6 +118,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         assertWritable(item);
         tagService.replaceTags(id, List.of());
         itemMapper.deleteById(id);
+        eventPublisher.publishEvent(KnowledgeIndexEvent.remove(id));
     }
 
     @Override
@@ -124,6 +132,8 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         item.setStatus(STATUS_PUBLISHED);
         item.setPublishedAt(LocalDateTime.now());
         itemMapper.updateById(item);
+        // 事务提交后由 M5 重建该条目的向量索引（未启用 RAG 时无监听者，事件被丢弃）
+        eventPublisher.publishEvent(KnowledgeIndexEvent.upsert(id));
         return toDetailVO(item);
     }
 
@@ -138,6 +148,8 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         item.setStatus(STATUS_ARCHIVED);
         item.setArchivedAt(LocalDateTime.now());
         itemMapper.updateById(item);
+        // 归档内容不该留在索引里，否则问答仍可能引用它
+        eventPublisher.publishEvent(KnowledgeIndexEvent.remove(id));
         return toDetailVO(item);
     }
 
@@ -152,6 +164,8 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         item.setStatus(STATUS_DRAFT);
         item.setArchivedAt(null);
         itemMapper.updateById(item);
+        // 回到草稿即退出可见范围，索引里也不该留着
+        eventPublisher.publishEvent(KnowledgeIndexEvent.remove(id));
         return toDetailVO(item);
     }
 

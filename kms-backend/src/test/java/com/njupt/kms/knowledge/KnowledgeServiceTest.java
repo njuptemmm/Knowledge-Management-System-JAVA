@@ -37,7 +37,7 @@ class KnowledgeServiceTest {
     void setUp() {
         itemMapper = mock(KnowledgeItemMapper.class);
         tagService = mock(TagService.class);
-        knowledgeService = new KnowledgeServiceImpl(itemMapper, tagService, mock(CategoryService.class), mock(UserQueryPort.class));
+        knowledgeService = new KnowledgeServiceImpl(itemMapper, tagService, mock(CategoryService.class), mock(UserQueryPort.class), mock(org.springframework.context.ApplicationEventPublisher.class));
     }
 
     @AfterEach

@@ -85,17 +85,36 @@ public class RagConfig {
     @Bean("embeddingExecutor")
     public Executor embeddingExecutor(RagProperties properties) {
         int concurrency = Math.max(1, properties.getEmbedding().getConcurrency());
+        return newPool("rag-embed-", concurrency);
+    }
+
+    /**
+     * 索引任务的线程池，与向量化池**必须分开**。
+     *
+     * <p>索引任务会把分块提交给 embeddingExecutor 然后阻塞等待结果。
+     * 若两者共用一个池，8 个索引线程同时阻塞在 join() 上、而它们等待的分块任务
+     * 又排在这 8 个被占满的线程之后，就会互相等待致死。
+     *
+     * <p>池小是因为索引是后台任务，不该和 Web 请求抢资源；
+     * 真正的并发度由 embeddingExecutor 提供。
+     */
+    @Bean("ragIndexExecutor")
+    public Executor ragIndexExecutor() {
+        return newPool("rag-index-", 2);
+    }
+
+    private ThreadPoolExecutor newPool(String namePrefix, int size) {
         AtomicInteger counter = new AtomicInteger();
         ThreadPoolExecutor executor = new ThreadPoolExecutor(
-                concurrency, concurrency,
+                size, size,
                 60L, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(),
                 runnable -> {
-                    Thread thread = new Thread(runnable, "rag-embed-" + counter.incrementAndGet());
+                    Thread thread = new Thread(runnable, namePrefix + counter.incrementAndGet());
                     thread.setDaemon(true);
                     return thread;
                 });
-        log.info("[RAG] embedding 线程池并发度 = {}", concurrency);
+        log.info("[RAG] 线程池 {} 大小 = {}", namePrefix, size);
         return executor;
     }
 

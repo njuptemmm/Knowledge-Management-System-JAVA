@@ -76,6 +76,7 @@ com.njupt.kms
 
 | 模块 | 拥有表 |
 |---|---|
+| M0 平台支撑 | `user` |
 | M1 知识资产域 | `knowledge_item` `category` `tag` `item_tag` |
 | M2 内容接入域 | `attachment` |
 | M3 检索域 | 无（经 M1 导出的只读端口 `KnowledgeSearchPort` 取数） |

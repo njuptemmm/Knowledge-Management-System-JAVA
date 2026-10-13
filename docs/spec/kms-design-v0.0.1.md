@@ -185,9 +185,18 @@ public interface KnowledgeSearchPort {
 
 ### 3.3 模块所有权规则
 
-> **铁律：模块只能读写自己拥有的表。跨模块取数一律通过对方 Service 接口。**
+> **铁律：模块只能读写自己拥有的表。跨模块取数一律通过对方导出的接口或只读端口。**
 
-违反此规则的检查方式：任何 Mapper 中出现非本模块表的 SQL，即为越界。
+| 模块 | 拥有表 |
+|---|---|
+| M0 平台支撑 | `user` |
+| M1 知识资产域 | `knowledge_item` `category` `tag` `item_tag` |
+| M2 内容接入域 | `attachment` |
+| M3 检索域 | 无 |
+
+违反此规则的检查方式：任何 Mapper 中出现非本模块表的 SQL，即为越界（`AdminMapper` 等跨表统计查询亦不例外，须改由拥有该表的模块提供接口）。
+
+M3 需要跨表检索，其取数路径见 §3.2 的受控例外：M1 导出只读端口 `KnowledgeSearchPort`，针对 `knowledge_item` 的 SQL 仍写在 M1 包内，M3 只见接口与 M1 定义的行对象。依赖方向单向——`search` 依赖 `knowledge`，反之不成立。
 
 ---
 
@@ -458,7 +467,7 @@ ORDER BY score DESC, k.updated_at DESC
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/knowledge` | 分页浏览，支持 `categoryId` `tagId` `status` `page` `size` |
+| GET | `/api/knowledge` | 分页浏览，支持 `categoryId` `tagId` `status` `mine` `page` `size` |
 | GET | `/api/knowledge/{id}` | 详情，`view_count` 自增 |
 | POST | `/api/knowledge` | 新建（默认 `DRAFT`） |
 | PUT | `/api/knowledge/{id}` | 编辑 |
@@ -473,9 +482,13 @@ ORDER BY score DESC, k.updated_at DESC
 |---|---|---|
 | GET | `/api/search` | 高级检索 |
 
-参数：`keyword` `categoryId` `tagId` `contentType` `status` `from` `to` `sort` `page` `size`
+参数：`keyword` `categoryId` `tagId` `contentType` `status` `from` `to` `sort` `mine` `page` `size`
 
 `sort` 取值：`relevance`（默认） / `latest` / `hottest`
+
+**`categoryId` 的语义**：筛选**包含该分类的全部子孙分类**，而非仅精确匹配。点击"Java"分类应能看到"Spring"下的条目。实现上复用 §6.1 的树算法求后代 id 集合。
+
+**`mine` 的语义**：`mine=true` 时返回当前用户的**全部状态**条目（含草稿与归档），否则只返回 `PUBLISHED`。这是前端 P6「我的知识库」的必要支撑。§7.3 列表接口的 `mine` 参数含义相同。
 
 返回体 `SearchHit` 字段：`id` `title` `snippet` `categoryId` `categoryName` `tags` `status` `updatedAt` `score`。
 

@@ -1519,6 +1519,20 @@ class CategoryTreeBuilderTest {
         assertThat(CategoryTreeBuilder.collectDescendantIds(flat, 3L))
                 .containsExactly(3L);
     }
+
+    @Test
+    void descendant_lookup_survives_cyclic_data() {
+        // 脏数据成环（2 的父是 3，3 的父是 2）：必须终止而不是死循环
+        List<Category> flat = List.of(
+                cat(1L, 0L, "根", 1),
+                cat(2L, 3L, "A", 1),
+                cat(3L, 2L, "B", 1)
+        );
+
+        Set<Long> ids = CategoryTreeBuilder.collectDescendantIds(flat, 2L);
+
+        assertThat(ids).containsExactlyInAnyOrder(2L, 3L);
+    }
 }
 ```
 
@@ -1715,7 +1729,7 @@ public final class CategoryTreeBuilder {
 - [ ] **Step 6: 运行测试确认通过**
 
 Run: `cd kms-backend && mvn -q test -Dtest=CategoryTreeBuilderTest`
-Expected: `Tests run: 6, Failures: 0, Errors: 0`
+Expected: `Tests run: 7, Failures: 0, Errors: 0`
 
 - [ ] **Step 7: 提交**
 

@@ -828,7 +828,7 @@ public class GlobalExceptionHandler {
 - [ ] **Step 7: 运行测试确认通过**
 
 Run: `cd kms-backend && mvn -q test -Dtest=GlobalExceptionHandlerTest`
-Expected: `Tests run: 5, Failures: 0, Errors: 0`
+Expected: `Tests run: 9, Failures: 0, Errors: 0`
 
 - [ ] **Step 8: 提交**
 
@@ -3470,18 +3470,40 @@ class TagServiceTest {
         assertThat(tagService.findOrCreate(null)).isNull();
     }
 
+    // 注意：不要用「输入含两个不同名字却断言只插一次」的写法——mock 会让
+    // findOrCreate 对任何名字返回同一个 Tag，断言与实际语义不符。
+    // 拆成两个用例，分别验证「去重 + 忽略空白」与「每个不同名字各插一条」。
     @Test
-    void replace_tags_by_names_clears_then_inserts_deduped() {
-        Tag java = new Tag();
-        java.setId(1L);
-        java.setName("Java");
-        when(tagMapper.selectOne(any())).thenReturn(java);
+    void replace_tags_by_names_dedupes_repeats_and_skips_blanks() {
+        when(tagMapper.selectOne(any())).thenReturn(tag(1L, "Java"));
 
-        tagService.replaceTagsByNames(5L, List.of("Java", "Java", "  ", "面试"));
+        tagService.replaceTagsByNames(5L, List.of("Java", "Java", "  ", " Java "));
 
         verify(itemTagMapper).delete(any());
-        // "Java" 去重后只插一次，空白项被忽略
-        verify(itemTagMapper, times(1)).insert(any());
+        // 四个输入规范化后只剩一个 "Java"
+        verify(itemTagMapper, times(1)).insert(any(ItemTag.class));
+    }
+
+    @Test
+    void replace_tags_by_names_inserts_one_link_per_distinct_name() {
+        AtomicLong seq = new AtomicLong(1);
+        when(tagMapper.selectOne(any())).thenReturn(null);
+        when(tagMapper.insert(any(Tag.class))).thenAnswer(inv -> {
+            ((Tag) inv.getArgument(0)).setId(seq.getAndIncrement());
+            return 1;
+        });
+
+        tagService.replaceTagsByNames(5L, List.of("Java", "面试"));
+
+        verify(itemTagMapper).delete(any());
+        verify(itemTagMapper, times(2)).insert(any(ItemTag.class));
+    }
+
+    private Tag tag(Long id, String name) {
+        Tag t = new Tag();
+        t.setId(id);
+        t.setName(name);
+        return t;
     }
 
     @Test
@@ -3742,7 +3764,7 @@ public class TagController {
 - [ ] **Step 8: 运行测试确认通过**
 
 Run: `cd kms-backend && mvn -q test -Dtest=TagServiceTest`
-Expected: `Tests run: 5, Failures: 0, Errors: 0`
+Expected: `Tests run: 9, Failures: 0, Errors: 0`
 
 - [ ] **Step 9: 提交**
 

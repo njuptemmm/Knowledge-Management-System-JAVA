@@ -4910,6 +4910,23 @@ class SearchQueryBuilderTest {
         // 上限 100，防止一次拉取过多数据
         assertThat(SearchServiceImpl.clampSize(query)).isEqualTo(100);
     }
+
+    @Test
+    void keyword_with_han_characters_uses_fulltext_path() {
+        assertThat(SearchServiceImpl.prefersFullText("索引")).isTrue();
+        assertThat(SearchServiceImpl.prefersFullText("数据库")).isTrue();
+        assertThat(SearchServiceImpl.prefersFullText("MySQL 索引")).isTrue();
+    }
+
+    @Test
+    void ascii_only_keyword_uses_like_path_because_ngram_skips_latin() {
+        // 实测：ngram 解析器不索引拉丁字符，MATCH('Java') 恒为 0 分。
+        // 纯英文/数字关键词必须降级到 LIKE 路径，否则搜索结果为空。
+        assertThat(SearchServiceImpl.prefersFullText("Java")).isFalse();
+        assertThat(SearchServiceImpl.prefersFullText("MySQL")).isFalse();
+        assertThat(SearchServiceImpl.prefersFullText("JVM")).isFalse();
+        assertThat(SearchServiceImpl.prefersFullText("Spring 6")).isFalse();
+    }
 }
 ```
 
@@ -5051,6 +5068,12 @@ public class KnowledgeSearchCondition {
     private double weightTitle;
     private double weightSummary;
     private double weightContent;
+
+    /**
+     * true 走 ngram 全文索引（关键词含 CJK）；false 走 LIKE（纯 ASCII 关键词）。
+     * 依据见设计文档 §5.2 第 3 点：ngram 解析器不索引拉丁字符。
+     */
+    private boolean useFullText;
 }
 ```
 
@@ -5133,7 +5156,8 @@ public interface KnowledgeSearchMapper {
                                      @Param("from") LocalDate from,
                                      @Param("to") LocalDate to,
                                      @Param("sort") String sort,
-                                     @Param("visibleAuthorId") Long visibleAuthorId);
+                                     @Param("visibleAuthorId") Long visibleAuthorId,
+                                     @Param("useFullText") boolean useFullText);
 
     java.util.List<java.util.Map<String, Object>> selectTagsOf(
             @Param("itemIds") Collection<Long> itemIds);
@@ -5148,15 +5172,24 @@ public interface KnowledgeSearchMapper {
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.njupt.kms.knowledge.mapper.KnowledgeSearchMapper">
 
-    <!--
-      相关度加权融合：三个独立全文索引（ft_title/ft_summary/ft_content）分别求分再加权。
-      MySQL 要求 MATCH() 的列与某个全文索引的列完全一致，故必须分列书写。
-    -->
-    <sql id="weightedScore">
+    <!-- 路径 A：含 CJK 的关键词 —— 走三个 ngram 全文索引分别求分再加权。
+         MySQL 要求 MATCH() 的列与某个全文索引的列完全一致，故必须分列书写。 -->
+    <sql id="fullTextScore">
         (
         #{wTitle}   * MATCH(k.title)   AGAINST (#{kw} IN NATURAL LANGUAGE MODE)
         + #{wSummary} * MATCH(k.summary) AGAINST (#{kw} IN NATURAL LANGUAGE MODE)
         + #{wContent} * MATCH(k.content) AGAINST (#{kw} IN NATURAL LANGUAGE MODE)
+        )
+    </sql>
+
+    <!-- 路径 B：纯 ASCII 的关键词 —— ngram 解析器不索引拉丁字符，MATCH 恒为 0 分，
+         故降级为 LIKE。权重取值与路径 A 相同，保证两种关键词下排序语义一致。
+         详见设计文档 §5.2 第 3 点与 §6.3.1。 -->
+    <sql id="likeScore">
+        (
+        CASE WHEN k.title   LIKE CONCAT('%', #{kw}, '%') THEN #{wTitle}   ELSE 0 END
+        + CASE WHEN k.summary LIKE CONCAT('%', #{kw}, '%') THEN #{wSummary} ELSE 0 END
+        + CASE WHEN k.content LIKE CONCAT('%', #{kw}, '%') THEN #{wContent} ELSE 0 END
         )
     </sql>
 
@@ -5169,8 +5202,11 @@ public interface KnowledgeSearchMapper {
         k.status,
         k.updated_at AS updatedAt
         <choose>
+            <when test="kw != null and kw != '' and useFullText">
+                , <include refid="fullTextScore"/> AS score
+            </when>
             <when test="kw != null and kw != ''">
-                , <include refid="weightedScore"/> AS score
+                , <include refid="likeScore"/> AS score
             </when>
             <otherwise>
                 , 0 AS score
@@ -5179,11 +5215,18 @@ public interface KnowledgeSearchMapper {
         FROM knowledge_item k
         LEFT JOIN category c ON c.id = k.category_id
         <where>
-            <if test="kw != null and kw != ''">
+            <if test="kw != null and kw != '' and useFullText">
                 AND (
                 MATCH(k.title) AGAINST (#{kw} IN NATURAL LANGUAGE MODE)
                 OR MATCH(k.summary) AGAINST (#{kw} IN NATURAL LANGUAGE MODE)
                 OR MATCH(k.content) AGAINST (#{kw} IN NATURAL LANGUAGE MODE)
+                )
+            </if>
+            <if test="kw != null and kw != '' and !useFullText">
+                AND (
+                k.title LIKE CONCAT('%', #{kw}, '%')
+                OR k.summary LIKE CONCAT('%', #{kw}, '%')
+                OR k.content LIKE CONCAT('%', #{kw}, '%')
                 )
             </if>
             <if test="categoryIds != null and categoryIds.size() > 0">
@@ -5281,7 +5324,8 @@ public class KnowledgeSearchPortImpl implements KnowledgeSearchPort {
                 condition.getFrom(),
                 condition.getTo(),
                 condition.getSort(),
-                condition.getVisibleAuthorId());
+                condition.getVisibleAuthorId(),
+                condition.isUseFullText());
     }
 
     @Override
@@ -5362,8 +5406,12 @@ public class SearchServiceImpl implements SearchService {
                 ? current.getId()
                 : null;
 
+        String keyword = normalizeKeyword(query);
+
         KnowledgeSearchCondition condition = new KnowledgeSearchCondition();
-        condition.setKeyword(normalizeKeyword(query));
+        condition.setKeyword(keyword);
+        // ngram 解析器不索引拉丁字符：含 CJK 走全文索引，纯 ASCII 降级 LIKE
+        condition.setUseFullText(prefersFullText(keyword));
         // 点击父分类要能看到下级条目，因此展开为全部后代 id
         condition.setCategoryIds(query.getCategoryId() == null
                 ? null
@@ -5419,6 +5467,30 @@ public class SearchServiceImpl implements SearchService {
         return StringUtils.hasText(query.getKeyword()) ? query.getKeyword().trim() : null;
     }
 
+    /**
+     * 关键词是否应走 ngram 全文索引。
+     *
+     * <p>实测（MySQL 8.0.41，ngram_token_size=2）：ngram 解析器只对 CJK 字符生成 token，
+     * 拉丁字母与数字完全不进索引，{@code MATCH(title) AGAINST('Java')} 恒为 0 分。
+     * 因此含 CJK 才走全文索引，纯 ASCII 必须降级为 LIKE，否则英文技术名词搜不到。
+     * 详见设计文档 §5.2 第 3 点。
+     */
+    static boolean prefersFullText(String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return false;
+        }
+        for (int i = 0; i < keyword.length(); i++) {
+            char c = keyword.charAt(i);
+            // CJK 统一表意文字 + 扩展 A + 兼容表意文字，覆盖本项目可能出现的全部中文
+            if ((c >= 0x4E00 && c <= 0x9FFF)
+                    || (c >= 0x3400 && c <= 0x4DBF)
+                    || (c >= 0xF900 && c <= 0xFAFF)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static String resolveSortOrder(SearchQuery query) {
         String sort = query.getSort();
         return (sort != null && ALLOWED_SORTS.contains(sort)) ? sort : "relevance";
@@ -5472,13 +5544,16 @@ public class SearchController {
 - [ ] **Step 12: 运行测试确认通过**
 
 Run: `cd kms-backend && mvn -q test -Dtest=SearchQueryBuilderTest`
-Expected: `Tests run: 5, Failures: 0, Errors: 0`
+Expected: `Tests run: 7, Failures: 0, Errors: 0`
 
 - [ ] **Step 13: 手工验证加权与过滤**
 
 ```bash
-# 全文检索：关键词 Java
+# 路径 B（纯 ASCII → LIKE）：英文技术名词必须能搜到，这是本次修正的核心目标
 curl -s "http://localhost:8080/api/search?keyword=Java&size=5" | head -c 600
+
+# 路径 A（含 CJK → ngram 全文索引）
+curl -s "http://localhost:8080/api/search?keyword=索引&size=5" | head -c 600
 
 # 高级检索：Java + 分类 4（Spring）+ 只看已发布
 curl -s "http://localhost:8080/api/search?keyword=Java&categoryId=4&status=PUBLISHED" | head -c 400
@@ -5488,11 +5563,12 @@ curl -s "http://localhost:8080/api/search?categoryId=11&size=5" | head -c 400
 ```
 
 Expected:
-- 第一条：标题含 "Java" 的条目排在前面，`score` 非 0
-- 第二条：只返回分类 4（Spring）下的条目
-- 第三条：返回 MySQL 相关条目，不报错（证明空关键词分支可用）
+- **第 1 条必须非空**，且 `Java 基础语法速查`、`Java 集合框架详解` 的 `score` = 3.0（标题命中）。**若此条为空，说明降级逻辑失效**——ngram 索引查不到拉丁词是已实测确认的行为。
+- 第 2 条返回 `MySQL 索引原理` 等中文命中，`score` 为 MySQL 计算的 TF-IDF 值（小数）。
+- 第 3 条只返回分类 4（Spring）下的条目。
+- 第 4 条返回 MySQL 相关条目，不报错（证明空关键词分支可用）。
 
-**验证加权生效**：搜 "Java" 时，标题含 "Java" 的条目（如 `Java 基础语法速查`）应排在仅在正文提到 Java 的条目前面。
+**验证加权生效**：两条路径下，标题命中的条目都应排在只有正文命中的条目之前。
 
 - [ ] **Step 14: 提交**
 
@@ -5647,13 +5723,25 @@ class ApiSmokeTest {
         mockMvc.perform(get("/api/search").param("keyword", "索引"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                // seed 中「MySQL 索引原理」必须被搜到，证明 ngram 生效
+                // seed 中「MySQL 索引原理」必须被搜到，证明 ngram 索引生效
                 .andExpect(jsonPath("$.data.records[0].title").value(
                         org.hamcrest.Matchers.containsString("索引")));
     }
 
     @Test
     @Order(7)
+    void search_finds_latin_terms_via_like_fallback() throws Exception {
+        // ngram 解析器不索引拉丁字符，此路径由 LIKE 兜底。
+        // 若此测试失败，说明英文技术名词搜不到——对本系统是致命缺陷。
+        mockMvc.perform(get("/api/search").param("keyword", "Java"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records").isNotEmpty())
+                .andExpect(jsonPath("$.data.records[0].title").value(
+                        org.hamcrest.Matchers.containsString("Java")));
+    }
+
+    @Test
+    @Order(8)
     void unknown_item_returns_business_error_not_stacktrace() throws Exception {
         mockMvc.perform(get("/api/knowledge/999999"))
                 .andExpect(jsonPath("$.code").value(2000))
@@ -5661,7 +5749,7 @@ class ApiSmokeTest {
     }
 
     @Test
-    @Order(8)
+    @Order(9)
     void forbidden_operation_returns_clear_message() throws Exception {
         String other = login("zhangsan", "user123");
         // seed 中 id=1 的条目作者是 admin(1)，zhangsan(2) 无权修改

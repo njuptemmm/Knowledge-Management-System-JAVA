@@ -333,7 +333,7 @@ attachment (
 )
 ```
 
-### 5.2 三个必须落实的技术点
+### 5.2 四个必须落实的技术点
 
 1. **`FULLTEXT ... WITH PARSER ngram`**
    MySQL 默认按空格分词，对中文几乎无效（整句会被当作一个 token）。不加 `ngram` 解析器，中文全文检索等同于废功能。建表时必须带上。
@@ -343,9 +343,37 @@ attachment (
 2. **必须建三个独立全文索引，而非一个复合索引**
    MySQL 要求 `MATCH(col...)` 中的列与某个全文索引的列**完全一致**。因此 `FULLTEXT(title, summary, content)` 这个复合索引**无法**支持 `MATCH(title)` 单独求相关度——§6.3 的分列加权将直接报错。
 
-   故分别建立 `ft_title`、`ft_summary`、`ft_content` 三个索引。代价是索引空间增加，收益是标题命中的权重可独立调节。这是本项目在检索精度上的核心实现手段。
+   故分别建立 `ft_title`、`ft_summary`、`ft_content` 三个索引。代价是索引空间增加，收益是标题命中的权重可独立调节。
 
-2. **检索范围与状态的一致性**
+3. **ngram 解析器不索引拉丁字符 —— 必须做双路径检索**（实测确认）
+
+   本项目在 MySQL 8.0.41 上实测：`ngram_token_size=2` 时，**ngram 解析器只对 CJK 字符生成 token，拉丁字母与数字序列完全不进索引**。
+
+   ```
+   MATCH(title) AGAINST('基础')  →  得分 1.69   ✅
+   MATCH(title) AGAINST('Java')  →  得分 0      ❌
+   MATCH(title) AGAINST('Jav')   →  得分 0      ❌
+   MATCH(title) AGAINST('ava')   →  得分 0      ❌
+   ```
+
+   自然语言模式、布尔模式（`+Java`、`Jav*`）、短语模式，以及换到 `content` 列检索，**全部返回 0 条**。
+
+   **影响**：本系统是编程知识库，标题大量含 `Java`、`MySQL`、`Redis`、`Spring`、`JVM`、`Python`。若只建 ngram 索引，用户搜索任何英文技术名词都搜不到结果——这是不可接受的缺陷。
+
+   **方案**：`SearchService` 按关键词字符集选择查询路径。
+
+   | 关键词 | 路径 | 依据 |
+   |---|---|---|
+   | 含 CJK 字符 | `MATCH ... AGAINST`（走 ngram 索引） | 索引有效，相关度排序准确 |
+   | 纯 ASCII | `LIKE '%kw%'` 匹配 title / summary / content | 绕开 ngram 的拉丁盲区 |
+
+   两条路径**共用同一套加权公式**（§6.3），因此相关度语义一致。
+
+   **被否决的替代方案**：为拉丁词另建三个默认分词器的全文索引。由于 MySQL 要求 `MATCH()` 的列与索引列完全一致，且同一列上无法并存两个不同解析器的全文索引，必须增加三个 STORED 生成列（内容列需复制 LONGTEXT），schema 复杂度与存储代价不成比例。`LIKE` 在课程设计的数据规模（数百条）下性能无差异。
+
+   **已知局限**：混合关键词（如 `Java 基础`）会归入 CJK 路径，只命中中文部分。记入报告第七部分作为后续改进点。
+
+4. **检索范围与状态的一致性**
    只有 `status = 'PUBLISHED'` 的条目对外可见并进入默认检索范围；作者本人可检索自己的 `DRAFT`。此规则由 `SearchService` 统一收口，不允许各调用点自行判断。
 
 ### 5.3 实体关系（ER 图底稿）
@@ -414,6 +442,32 @@ ORDER BY score DESC, k.updated_at DESC
 ```
 
 最终排序：`ORDER BY score DESC, updated_at DESC`（相关度优先，同分时新者优先）。
+
+#### 6.3.1 双路径：拉丁关键词的降级
+
+由于 ngram 解析器不索引拉丁字符（§5.2 第 3 点），上式的 `MATCH` 路径对纯英文关键词恒为 0 分，会导致搜索 `Java` 返回空结果。因此 `SearchService` 按关键词字符集分派到两条 SQL 路径：
+
+**路径 A — 含 CJK 字符**：使用上式的 `MATCH ... AGAINST`，走 ngram 全文索引，相关度为 MySQL 计算的 TF-IDF 分数。
+
+**路径 B — 纯 ASCII**：使用 `LIKE` 匹配，相关度按命中列**固定赋权**：
+
+```sql
+SELECT k.*,
+       (CASE WHEN k.title   LIKE CONCAT('%', :kw, '%') THEN 3.0 ELSE 0 END
+      + CASE WHEN k.summary LIKE CONCAT('%', :kw, '%') THEN 2.0 ELSE 0 END
+      + CASE WHEN k.content LIKE CONCAT('%', :kw, '%') THEN 1.0 ELSE 0 END) AS score
+FROM knowledge_item k
+WHERE k.title LIKE CONCAT('%', :kw, '%')
+   OR k.summary LIKE CONCAT('%', :kw, '%')
+   OR k.content LIKE CONCAT('%', :kw, '%')
+ORDER BY score DESC, k.updated_at DESC
+```
+
+两条路径的**权重取值相同**（标题 3.0 / 摘要 2.0 / 正文 1.0），因此"标题命中优先于正文命中"这一语义在两种关键词下保持一致。
+
+**路径选择的判定**：关键词中存在任一 `Character.UnicodeScript.HAN`（或广义 CJK 区间）字符即走路径 A，否则走路径 B。
+
+**路径 B 的 `LIKE` 无法使用索引**，是全表扫描。在课程设计的数据规模（数百条）下实测无感知差异；数据量增长后应改为 §5.2 第 3 点所述的生成列方案。
 
 权重取值依据：标题是内容的最强语义浓缩，摘要次之，正文兜底。权重作为**配置项**（`app.search.weight.title` 等）而非硬编码，便于报告中对"参数调优"作说明。
 

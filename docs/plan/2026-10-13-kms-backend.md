@@ -4386,7 +4386,7 @@ public class AttachmentController {
 - [ ] **Step 11: 运行测试确认通过**
 
 Run: `cd kms-backend && mvn -q test -Dtest=FileStorageTest`
-Expected: `Tests run: 6, Failures: 0, Errors: 0`
+Expected: `Tests run: 9, Failures: 0, Errors: 0`
 
 - [ ] **Step 12: 提交**
 
@@ -4479,13 +4479,12 @@ class ParserFactoryTest {
     }
 
     @Test
-    void image_parser_returns_placeholder_without_text() throws Exception {
-        ImageParser parser = new ImageParser();
+    void image_parser_returns_empty_text_without_failing() throws Exception {
+        // TextParser 没有 supports()，扩展名通过 extensions() 声明
+        assertThat(factory.forFilename("a.png")).isInstanceOf(ImageParser.class);
 
-        String parsed = parser.parse(new java.io.ByteArrayInputStream(new byte[]{1, 2, 3}));
-
-        assertThat(parsed).isNotNull();
-        assertThat(parser.supports("png")).isTrue();
+        assertThat(factory.forFilename("a.png").parse(
+                new java.io.ByteArrayInputStream(new byte[]{1, 2, 3}))).isEmpty();
     }
 }
 ```
@@ -4838,7 +4837,7 @@ public class AsyncConfig {
 - [ ] **Step 10: 运行测试确认通过**
 
 Run: `cd kms-backend && mvn -q test -Dtest=ParserFactoryTest`
-Expected: `Tests run: 6, Failures: 0, Errors: 0`
+Expected: `Tests run: 9, Failures: 0, Errors: 0`
 
 - [ ] **Step 11: 手工验证异步解析**
 

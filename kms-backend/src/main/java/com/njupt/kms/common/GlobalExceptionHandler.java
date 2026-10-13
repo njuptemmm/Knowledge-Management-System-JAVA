@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
 
@@ -60,6 +62,33 @@ public class GlobalExceptionHandler {
     public Result<Void> handleMissingParam(MissingServletRequestParameterException e) {
         log.warn("缺少请求参数: {}", e.getParameterName());
         return Result.fail(ResultCode.PARAM_ERROR, "缺少必要参数：" + e.getParameterName());
+    }
+
+    /**
+     * 上传文件超过 multipart 上限。
+     *
+     * <p>Spring 在请求进入 Controller **之前**就抛此异常，
+     * 因此 LocalFileStorage 里的大小校验根本来不及执行。
+     * 不在此处接住的话，用户传个大文件只会看到「系统繁忙」。
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public Result<Void> handleUploadTooLarge(MaxUploadSizeExceededException e) {
+        log.warn("上传文件超过大小限制: {}", e.getMessage());
+        return Result.fail(ResultCode.PARAM_ERROR, "文件不能超过 20MB");
+    }
+
+    /**
+     * 请求路径不存在。
+     *
+     * <p>Spring 6.1 起，未映射的路径抛 NoResourceFoundException。
+     * 若落到下面的兜底处理器，一个拼错的 URL 会得到 HTTP 500 —— 显然是错的。
+     * 路径不存在不是业务结果，返回真正的 404 更符合工具与监控的预期。
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Result<Void> handleNoResource(NoResourceFoundException e) {
+        log.warn("路径不存在: {}", e.getResourcePath());
+        return Result.fail(ResultCode.NOT_FOUND, "接口不存在");
     }
 
     /**

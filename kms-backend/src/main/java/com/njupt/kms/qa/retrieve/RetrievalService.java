@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -31,6 +31,16 @@ public class RetrievalService {
 
     /** 超采倍数：先多召回一些，过滤与去重之后再截断到 topK。 */
     private static final int OVER_FETCH_FACTOR = 3;
+
+    /**
+     * 单篇文档最多贡献几块。
+     *
+     * <p>不限制的话，一篇长文档会占满 prompt 预算，挤掉其他来源；
+     * 但限制为 1 又太紧——同一篇文档的不同小节常常共同回答一个问题
+     * （比如「聚簇索引和非聚簇索引有什么区别」需要两节的内容），
+     * 只放行得分最高的那块会导致明明检索到了却答不出来。
+     */
+    private static final int MAX_CHUNKS_PER_ITEM = 3;
 
     private final VectorStore vectorStore;
     private final RagProperties properties;
@@ -74,8 +84,13 @@ public class RetrievalService {
             visible = Set.of();
         }
 
-        Map<Long, RetrievedChunk> bestPerItem = new LinkedHashMap<>();
-        for (RetrievedChunk candidate : candidates) {
+        // 先按得分降序，保证每篇文档留下的是最相关的几块
+        List<RetrievedChunk> usable = new ArrayList<>(candidates);
+        usable.sort((a, b) -> Double.compare(b.score(), a.score()));
+
+        Map<Long, Integer> perItemCount = new HashMap<>();
+        List<RetrievedChunk> result = new ArrayList<>();
+        for (RetrievedChunk candidate : usable) {
             if (candidate.score() < properties.getRetrieve().getMinScore()) {
                 log.debug("[RAG] 丢弃低相关块 itemId={} score={}", candidate.itemId(), candidate.score());
                 continue;
@@ -84,13 +99,13 @@ public class RetrievalService {
                 log.debug("[RAG] 丢弃当前不可见条目的召回块 itemId={}", candidate.itemId());
                 continue;
             }
-            // 同一篇文档的多个块命中时只留最相关的，避免 prompt 被单篇文档占满
-            bestPerItem.merge(candidate.itemId(), candidate,
-                    (a, b) -> a.score() >= b.score() ? a : b);
+            int used = perItemCount.getOrDefault(candidate.itemId(), 0);
+            if (used >= MAX_CHUNKS_PER_ITEM) {
+                continue;
+            }
+            perItemCount.put(candidate.itemId(), used + 1);
+            result.add(candidate);
         }
-
-        List<RetrievedChunk> result = new ArrayList<>(bestPerItem.values());
-        result.sort((a, b) -> Double.compare(b.score(), a.score()));
 
         int topK = properties.getRetrieve().getTopK();
         return result.size() > topK ? result.subList(0, topK) : result;

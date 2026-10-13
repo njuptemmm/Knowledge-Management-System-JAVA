@@ -135,6 +135,50 @@ class ChunkingServiceTest {
     }
 
     @Test
+    void preamble_before_first_heading_is_merged_into_the_first_section() {
+        // 真实数据形如「摘要\n\n# 标题\n\n正文」。若前言单独成节，
+        // 摘要会变成一句脱离上下文的话——实测模型拿到这种碎片只能拒答。
+        String text = """
+                摘要：B+ 树与最左前缀原则
+
+                # 索引原理
+
+                聚簇索引与非聚簇索引，回表查询的代价。
+                """;
+
+        List<Chunk> chunks = service.split(9L, text, "MySQL 索引原理");
+
+        assertThat(chunks).hasSize(1);
+        assertThat(chunks.get(0).text())
+                .contains("摘要：B+ 树与最左前缀原则")
+                .contains("聚簇索引与非聚簇索引");
+        // 标题本身被消费为 headingPath，不出现在正文里
+        assertThat(chunks.get(0).text()).doesNotContain("# 索引原理");
+        assertThat(chunks.get(0).headingPath()).isEqualTo("索引原理");
+    }
+
+    @Test
+    void preamble_with_several_headings_only_attaches_to_the_first() {
+        String text = """
+                前言部分
+
+                # 第一节
+
+                甲
+
+                # 第二节
+
+                乙
+                """;
+
+        List<Chunk> chunks = service.split(1L, text, "T");
+
+        assertThat(chunks).hasSize(2);
+        assertThat(chunks.get(0).text()).contains("前言部分");
+        assertThat(chunks.get(1).text()).doesNotContain("前言部分");
+    }
+
+    @Test
     void heading_without_body_contributes_no_empty_chunk() {
         String text = """
                 # 空标题

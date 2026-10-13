@@ -101,17 +101,36 @@ class RetrievalVisibilityTest {
     }
 
     @Test
-    void keeps_only_the_best_chunk_when_one_document_matches_multiple_times() {
-        // 同一篇文档的多个块命中时只保留最相关的那个，
-        // 否则 prompt 的预算会被同一篇文档占满
+    void keeps_multiple_chunks_from_one_document_best_first() {
+        // 同一篇文档的不同小节常常共同回答一个问题
+        // （如「聚簇索引和非聚簇索引的区别」需要两节），因此不能只留一块
+        properties.getRetrieve().setTopK(6);
         RetrievalService retrieval = service(
                 List.of(chunk(1, 0.9), chunk(1, 0.6), chunk(2, 0.7)),
                 Set.of(1L, 2L));
 
         List<RetrievedChunk> result = retrieval.retrieve("问题");
 
-        assertThat(result).extracting(RetrievedChunk::itemId).containsExactly(1L, 2L);
-        assertThat(result.get(0).score()).isEqualTo(0.9);
+        // 全局按分数降序，因此同一篇文档的两块不必相邻
+        assertThat(result).extracting(RetrievedChunk::score).containsExactly(0.9, 0.7, 0.6);
+        assertThat(result).extracting(RetrievedChunk::itemId).containsExactly(1L, 2L, 1L);
+    }
+
+    @Test
+    void one_document_cannot_take_more_than_the_per_item_cap() {
+        // 单篇文档最多 3 块，其余位置留给别的来源
+        properties.getRetrieve().setTopK(6);
+        RetrievalService retrieval = service(
+                List.of(chunk(1, 0.9), chunk(1, 0.85), chunk(1, 0.8), chunk(1, 0.75),
+                        chunk(2, 0.7), chunk(3, 0.6)),
+                Set.of(1L, 2L, 3L));
+
+        List<RetrievedChunk> result = retrieval.retrieve("问题");
+
+        assertThat(result).filteredOn(c -> c.itemId() == 1L).hasSize(3);
+        assertThat(result).extracting(RetrievedChunk::itemId).contains(2L, 3L);
+        // 被挤掉的是同一篇文档里得分最低的那块
+        assertThat(result).extracting(RetrievedChunk::score).doesNotContain(0.75);
     }
 
     @Test

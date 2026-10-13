@@ -80,44 +80,69 @@ public class ChunkingService {
      * <p>遇到同级或更高级的标题时，栈中不低于它的层级被弹出。
      * 这保证了 {@code # A / ## B / # C} 得到路径 {@code A > B} 与 {@code C}，
      * 而不是错误的 {@code A > B > C}。
+     *
+     * <p>**首个标题之前的内容视为文档级前言（通常就是摘要），并入第一节**。
+     * 不这样做的话，摘要会变成一块只有一句话、脱离上下文的碎片——
+     * 实测「B+ 树与最左前缀原则」这样单独成块时，模型无法判断它在说什么，只能拒答。
      */
     private List<Section> splitIntoSections(String text, String title) {
+        String defaultPath = StringUtils.hasText(title) ? title.strip() : "正文";
+
         List<Section> sections = new ArrayList<>();
         Deque<String> headingStack = new ArrayDeque<>();
         List<Integer> levelStack = new ArrayList<>();
 
-        String currentPath = StringUtils.hasText(title) ? title.strip() : "正文";
         StringBuilder buffer = new StringBuilder();
+        StringBuilder preamble = new StringBuilder();
+        String currentPath = defaultPath;
+        boolean seenHeading = false;
 
         for (String line : text.split("\r?\n", -1)) {
             Matcher matcher = HEADING.matcher(line.strip());
             if (matcher.matches()) {
-                flush(sections, currentPath, buffer);
+                String body = buffer.toString().strip();
+                buffer.setLength(0);
+
+                if (!seenHeading) {
+                    preamble.append(body);       // 攒着，稍后并入第一节
+                } else if (!body.isEmpty()) {
+                    sections.add(new Section(currentPath, body));
+                }
 
                 int level = matcher.group(1).length();
-                String heading = matcher.group(2).strip();
-
                 while (!levelStack.isEmpty() && levelStack.get(levelStack.size() - 1) >= level) {
                     levelStack.remove(levelStack.size() - 1);
                     headingStack.removeLast();
                 }
                 levelStack.add(level);
-                headingStack.addLast(heading);
+                headingStack.addLast(matcher.group(2).strip());
                 currentPath = String.join(" > ", headingStack);
+                seenHeading = true;
             } else {
                 buffer.append(line).append('\n');
             }
         }
-        flush(sections, currentPath, buffer);
-        return sections;
+
+        String tail = buffer.toString().strip();
+        if (!tail.isEmpty()) {
+            sections.add(new Section(currentPath, tail));
+        }
+
+        return mergePreamble(sections, preamble.toString().strip(), defaultPath);
     }
 
-    private void flush(List<Section> sections, String path, StringBuilder buffer) {
-        String body = buffer.toString().strip();
-        if (!body.isEmpty()) {
-            sections.add(new Section(path, body));
+    /** 把文档级前言并入第一节；若整篇没有标题，前言本身就是唯一一节。 */
+    private List<Section> mergePreamble(List<Section> sections, String preamble, String defaultPath) {
+        if (preamble.isEmpty()) {
+            return sections;
         }
-        buffer.setLength(0);
+        if (sections.isEmpty()) {
+            return List.of(new Section(defaultPath, preamble));
+        }
+        List<Section> merged = new ArrayList<>(sections);
+        Section first = merged.get(0);
+        merged.set(0, new Section(first.headingPath(), preamble + "\n\n" + first.body()));
+        return merged;
     }
 
     /**

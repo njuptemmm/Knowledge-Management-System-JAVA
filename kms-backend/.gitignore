@@ -1,0 +1,6 @@
+target/
+uploads/
+application-local.yaml
+*.log
+.idea/
+*.iml

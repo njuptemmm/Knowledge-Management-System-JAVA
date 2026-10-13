@@ -1,0 +1,18 @@
+# =====================================================================
+# 本地敏感配置模板
+# 使用方法：
+#   1. 复制本文件为 application-local.yaml（同名去掉 .example）
+#   2. 填入真实值
+#   3. application-local.yaml 已在 .gitignore 中，不会被提交
+# =====================================================================
+
+spring:
+  datasource:
+    username: root
+    password: YOUR_MYSQL_PASSWORD
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      # password: 你的 Redis 密码（本地通常不需要）

@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: kms
+  # 真实密钥/密码放 application-local.yaml（已 gitignore）
+  profiles:
+    active: local
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/kms?serverTimezone=Asia/Shanghai&useSSL=false&useUnicode=true&characterEncoding=utf8&allowPublicKeyRetrieval=true
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 3000ms
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+app:
+  upload-dir: uploads
+  search:
+    weight:
+      title: 3.0
+      summary: 2.0
+      content: 1.0
+
+logging:
+  level:
+    com.njupt.kms: DEBUG

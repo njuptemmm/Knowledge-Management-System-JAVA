@@ -104,6 +104,14 @@ public class TagServiceImpl implements TagService {
         return tagMapper.selectWithCount();
     }
 
+    @Override
+    public List<String> namesOf(Long itemId) {
+        if (itemId == null) {
+            return List.of();
+        }
+        return tagMapper.selectNamesOfItem(itemId);
+    }
+
     private String normalize(String name) {
         String trimmed = name.trim();
         return trimmed.length() > MAX_NAME_LENGTH ? trimmed.substring(0, MAX_NAME_LENGTH) : trimmed;

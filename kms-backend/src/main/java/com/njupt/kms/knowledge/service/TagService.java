@@ -21,4 +21,7 @@ public interface TagService {
 
     /** 标签列表，含引用次数。 */
     List<TagVO> listWithCount();
+
+    /** 某条目的标签名，按名称排序。 */
+    List<String> namesOf(Long itemId);
 }

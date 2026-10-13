@@ -13,6 +13,7 @@ import com.njupt.kms.knowledge.service.KnowledgeService;
 import com.njupt.kms.knowledge.service.TagService;
 import com.njupt.kms.security.CurrentUser;
 import com.njupt.kms.security.User;
+import com.njupt.kms.security.UserQueryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +35,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     private final KnowledgeItemMapper itemMapper;
     private final TagService tagService;
     private final CategoryService categoryService;
+    private final UserQueryPort userQueryPort;
 
     @Override
     @Transactional
@@ -187,7 +189,18 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         return Math.min(size, MAX_PAGE_SIZE);
     }
 
+    /**
+     * 详情 VO 需要分类名、作者昵称与标签，这些都不在 knowledge_item 表里。
+     * 分类与标签归本模块所有，直接查；作者昵称归 security 模块，走 UserQueryPort。
+     */
     private KnowledgeDetailVO toDetailVO(KnowledgeItem item) {
-        return KnowledgeDetailVO.from(item);
+        KnowledgeDetailVO vo = KnowledgeDetailVO.from(item);
+        vo.setCategoryName(categoryService.nameOf(item.getCategoryId()));
+        vo.setTags(tagService.namesOf(item.getId()));
+        if (item.getAuthorId() != null) {
+            vo.setAuthorName(userQueryPort.nicknamesOf(List.of(item.getAuthorId()))
+                    .get(item.getAuthorId()));
+        }
+        return vo;
     }
 }

@@ -11,6 +11,7 @@ import com.njupt.kms.knowledge.service.TagService;
 import com.njupt.kms.knowledge.service.impl.KnowledgeServiceImpl;
 import com.njupt.kms.security.CurrentUser;
 import com.njupt.kms.security.User;
+import com.njupt.kms.security.UserQueryPort;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,7 +37,7 @@ class KnowledgeServiceTest {
     void setUp() {
         itemMapper = mock(KnowledgeItemMapper.class);
         tagService = mock(TagService.class);
-        knowledgeService = new KnowledgeServiceImpl(itemMapper, tagService, mock(CategoryService.class));
+        knowledgeService = new KnowledgeServiceImpl(itemMapper, tagService, mock(CategoryService.class), mock(UserQueryPort.class));
     }
 
     @AfterEach

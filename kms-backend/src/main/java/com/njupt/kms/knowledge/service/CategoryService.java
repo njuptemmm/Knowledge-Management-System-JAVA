@@ -23,4 +23,7 @@ public interface CategoryService {
 
     /** 某分类的全部后代 id（含自身）。 */
     Set<Long> descendantIds(Long categoryId);
+
+    /** 分类名。id 为空或分类不存在时返回 null。 */
+    String nameOf(Long categoryId);
 }

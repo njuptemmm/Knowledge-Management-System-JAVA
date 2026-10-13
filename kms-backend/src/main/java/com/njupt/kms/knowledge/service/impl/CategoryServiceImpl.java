@@ -108,6 +108,15 @@ public class CategoryServiceImpl implements CategoryService {
         return CategoryTreeBuilder.collectDescendantIds(all(), categoryId);
     }
 
+    @Override
+    public String nameOf(Long categoryId) {
+        if (categoryId == null) {
+            return null;
+        }
+        Category category = categoryMapper.selectById(categoryId);
+        return category == null ? null : category.getName();
+    }
+
     /** parentId → level。父分类必须存在。 */
     private int resolveLevel(long parentId) {
         if (parentId == ROOT_PARENT_ID) {

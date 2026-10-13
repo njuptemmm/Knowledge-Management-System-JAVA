@@ -5645,22 +5645,28 @@ git commit -m "feat(search): add weighted fulltext search via knowledge read-onl
 
 - [ ] **Step 1: 创建 `src/test/resources/application-test.yaml`**
 
+**不要在此文件中写数据库密码。** 该文件会提交进 git，而凭据属于敏感信息。
+改用**双 profile 叠加**：`test` 提供测试库地址，`local` 提供凭据（后者已被 gitignore）。
+
 ```yaml
+# 激活方式：@ActiveProfiles({"local", "test"})
 spring:
   datasource:
     url: jdbc:mysql://localhost:3306/kms_test?serverTimezone=Asia/Shanghai&useSSL=false&useUnicode=true&characterEncoding=utf8&allowPublicKeyRetrieval=true
-    username: root
-    password: 123456
-  data:
-    redis:
-      host: localhost
-      port: 6379
 
 app:
   upload-dir: target/test-uploads
 ```
 
-> 测试专用库 `kms_test`，与开发库 `kms` 隔离。执行 `schema.sql` 与 `seed.sql` 时把库名改为 `kms_test`（或用 `sed` 替换）。
+若只激活 `test` 不激活 `local`，启动会因缺少 datasource 凭据而失败——
+这是刻意的：宁可启动失败，也不在仓库里塞默认密码。
+
+> 测试专用库 `kms_test`，与开发库 `kms` 隔离。建库：
+> ```bash
+> mysql -u root -p -e "DROP DATABASE IF EXISTS kms_test; CREATE DATABASE kms_test DEFAULT CHARACTER SET utf8mb4;"
+> sed 's/^USE kms;$/USE kms_test;/; s/CREATE DATABASE IF NOT EXISTS kms/CREATE DATABASE IF NOT EXISTS kms_test/' sql/schema.sql | mysql --default-character-set=utf8mb4 -u root -p
+> sed 's/^USE kms;$/USE kms_test;/' sql/seed.sql | mysql --default-character-set=utf8mb4 -u root -p
+> ```
 
 - [ ] **Step 2: 写冒烟测试 `ApiSmokeTest.java`**
 

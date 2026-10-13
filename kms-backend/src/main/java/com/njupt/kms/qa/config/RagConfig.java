@@ -9,7 +9,6 @@ import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.vectorstore.SimpleVectorStore;
-import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
@@ -66,7 +65,7 @@ public class RagConfig {
      * 就不再是「重启后知识库答不了」的状态。
      */
     @Bean
-    public VectorStore vectorStore(EmbeddingModel embeddingModel, RagProperties properties) {
+    public SimpleVectorStore vectorStore(EmbeddingModel embeddingModel, RagProperties properties) {
         SimpleVectorStore store = SimpleVectorStore.builder(embeddingModel).build();
         File file = new File(properties.getVectorStore().getPath());
         if (file.exists() && file.length() > 0) {

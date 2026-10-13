@@ -1,6 +1,7 @@
 package com.njupt.kms.qa.chunk;
 
 import com.njupt.kms.qa.config.RagProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -30,10 +31,16 @@ public class ChunkingService {
     private final int maxLength;
     private final int overlap;
 
+    /**
+     * 生产用构造器。显式标注 {@code @Autowired}：本类还有一个供测试用的
+     * {@code (int, int)} 构造器，不标的话 Spring 无法决定用哪个。
+     */
+    @Autowired
     public ChunkingService(RagProperties properties) {
         this(properties.getChunk().getMaxLength(), properties.getChunk().getOverlap());
     }
 
+    /** 测试用构造器：直接给定长度参数，无需构造 RagProperties。 */
     public ChunkingService(int maxLength, int overlap) {
         // overlap 必须小于 maxLength，否则会原地打转
         this.maxLength = Math.max(1, maxLength);

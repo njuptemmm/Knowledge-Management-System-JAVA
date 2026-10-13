@@ -110,4 +110,32 @@
         <foreach collection="itemIds" item="iid" open="(" separator="," close=")">#{iid}</foreach>
         ORDER BY t.name
     </select>
+
+    <!-- 给定一批 id，返回当前真正可见的子集。与列表/检索接口同一套可见性规则 -->
+    <select id="selectVisibleIds" resultType="java.lang.Long">
+        SELECT id FROM knowledge_item
+        WHERE id IN
+        <foreach collection="itemIds" item="iid" open="(" separator="," close=")">#{iid}</foreach>
+        <choose>
+            <when test="currentUserId != null">
+                AND (status = 'PUBLISHED' OR author_id = #{currentUserId})
+            </when>
+            <otherwise>
+                AND status = 'PUBLISHED'
+            </otherwise>
+        </choose>
+    </select>
+
+    <!-- RAG 索引用：只取已发布条目。草稿与归档内容不进索引。
+         summary 放在 content 之前，因为它通常是全文的浓缩，有助于向量捕捉主题 -->
+    <select id="selectPublishedById" resultType="java.util.Map">
+        SELECT title,
+               CONCAT(IFNULL(summary, ''), '\n\n', IFNULL(content, '')) AS body
+        FROM knowledge_item
+        WHERE id = #{itemId} AND status = 'PUBLISHED'
+    </select>
+
+    <select id="selectPublishedIds" resultType="java.lang.Long">
+        SELECT id FROM knowledge_item WHERE status = 'PUBLISHED' ORDER BY id
+    </select>
 </mapper>

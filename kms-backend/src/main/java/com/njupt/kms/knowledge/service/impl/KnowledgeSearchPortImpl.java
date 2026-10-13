@@ -12,8 +12,10 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +41,14 @@ public class KnowledgeSearchPortImpl implements KnowledgeSearchPort {
                 condition.getSort(),
                 condition.getVisibleAuthorId(),
                 condition.isUseFullText());
+    }
+
+    @Override
+    public Set<Long> visibleItemIds(Collection<Long> itemIds, Long currentUserId) {
+        if (itemIds == null || itemIds.isEmpty()) {
+            return Set.of();
+        }
+        return new HashSet<>(searchMapper.selectVisibleIds(itemIds, currentUserId));
     }
 
     @Override

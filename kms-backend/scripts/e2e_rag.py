@@ -138,8 +138,12 @@ def main():
     _, rebuild = request("POST", "/api/qa/reindex", token=token)
     elapsed = time.time() - start
     check("B1 全量重建成功", rebuild.get("code") == 0, rebuild.get("message"))
-    check("B2 索引进去了已发布条目", rebuild["data"]["indexedItems"] == 17,
-          rebuild["data"]["indexedItems"])
+    # 动态取已发布条目数：其他脚本可能留下额外条目，写死数字会误判
+    _, published = request("GET", "/api/knowledge", params={"size": 100})
+    expected_items = published["data"]["total"]
+    check("B2 索引覆盖全部已发布条目",
+          rebuild["data"]["indexedItems"] == expected_items,
+          "索引 %s / 已发布 %s" % (rebuild["data"]["indexedItems"], expected_items))
     check("B3 产生了索引块", rebuild["data"]["indexedChunks"] > 0,
           rebuild["data"]["indexedChunks"])
     check("B4 重建耗时可接受（< 120 秒）", elapsed < 120, "%.1f 秒" % elapsed)

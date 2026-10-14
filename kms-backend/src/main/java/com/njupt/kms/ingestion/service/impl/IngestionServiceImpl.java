@@ -94,7 +94,13 @@ public class IngestionServiceImpl implements IngestionService {
         }
     }
 
-    /** 原始文件名只用于展示，去掉路径分隔符防止前端误用。 */
+    /**
+     * 清洗原始文件名，只保留用于展示的部分。
+     *
+     * <p>存储路径完全由服务端生成（UUID + 扩展名），本字段不参与任何路径拼接，
+     * 因此这里的清洗是纵深防御：去掉路径分隔符、上级目录记号与控制字符，
+     * 避免它在日志、下载响应头或前端渲染时被误用。
+     */
     private String sanitizeName(String originalName) {
         if (originalName == null || originalName.isBlank()) {
             return "未命名文件";
@@ -103,6 +109,13 @@ public class IngestionServiceImpl implements IngestionService {
         int slash = name.lastIndexOf('/');
         if (slash >= 0) {
             name = name.substring(slash + 1);
+        }
+        // 去掉 ".."（含 URL 编码形式的 %2e）与控制字符
+        name = name.replace("..", "_")
+                .replaceAll("(?i)%2e", "_")
+                .replaceAll("[\\p{Cntrl}]", "");
+        if (name.isBlank() || name.equals(".")) {
+            return "未命名文件";
         }
         return name.length() > 255 ? name.substring(name.length() - 255) : name;
     }

@@ -6,6 +6,8 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -89,6 +91,27 @@ public class GlobalExceptionHandler {
     public Result<Void> handleNoResource(NoResourceFoundException e) {
         log.warn("路径不存在: {}", e.getResourcePath());
         return Result.fail(ResultCode.NOT_FOUND, "接口不存在");
+    }
+
+    /**
+     * 用了接口不支持的方法（例如对集合端点发 DELETE）。
+     *
+     * <p>不显式处理的话会落到兜底处理器变成 500，把客户端的错误报成服务端故障。
+     * 405 是标准语义，也让调用方知道该换方法而不是以为服务挂了。
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
+    public Result<Void> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
+        log.warn("请求方法不支持: {} {}", e.getMethod(), e.getMessage());
+        return Result.fail(ResultCode.PARAM_ERROR, "该接口不支持 " + e.getMethod() + " 方法");
+    }
+
+    /** 客户端要求的响应类型服务端给不了（如对 SSE 接口要求 JSON）。 */
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    @ResponseStatus(HttpStatus.NOT_ACCEPTABLE)
+    public Result<Void> handleNotAcceptable(HttpMediaTypeNotAcceptableException e) {
+        log.warn("响应类型不可接受: {}", e.getMessage());
+        return Result.fail(ResultCode.PARAM_ERROR, "无法按请求的 Accept 类型返回结果");
     }
 
     /**

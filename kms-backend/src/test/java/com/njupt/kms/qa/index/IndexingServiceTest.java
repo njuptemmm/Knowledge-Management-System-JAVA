@@ -207,6 +207,33 @@ class IndexingServiceTest {
     }
 
     @Test
+    void rebuild_removes_stale_chunks_that_no_longer_exist_in_the_source() {
+        // 回归测试：数据库被重置后条目 id 会变化，只做增量索引会让旧块
+        // 永远留在索引里（实测发现过索引中存在已删除条目的块）。
+        // 重建必须先清空。
+        service.indexItem(999L, "已删除的条目", "这段内容不该留在索引里。");
+        assertThat(search("内容")).isNotEmpty();
+
+        IndexingService withOther = new IndexingService(
+                vectorStore, new ChunkingService(60, 15), Runnable::run, properties,
+                new ItemContentLoader() {
+                    @Override
+                    public ItemContentLoader.ItemContent load(Long itemId) {
+                        return new ItemContentLoader.ItemContent("条目" + itemId, "条目 " + itemId + " 的正文。");
+                    }
+
+                    @Override
+                    public java.util.Set<Long> allIndexableItemIds() {
+                        return java.util.Set.of(1L);
+                    }
+                });
+        withOther.rebuildAll();
+
+        assertThat(search("内容")).extracting(d -> d.getMetadata().get("itemId"))
+                .doesNotContain("999");
+    }
+
+    @Test
     void rebuild_indexes_every_item_from_the_loader() {
         IndexingService withMany = new IndexingService(
                 vectorStore, new ChunkingService(60, 15), Runnable::run, properties,

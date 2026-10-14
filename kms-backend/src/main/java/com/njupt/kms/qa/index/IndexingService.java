@@ -42,6 +42,10 @@ public class IndexingService {
 
     private volatile LocalDateTime lastRebuildAt;
 
+    /** 全量重建的互斥标记。并发触发会互相拖垮，也没有意义。 */
+    private final java.util.concurrent.atomic.AtomicBoolean rebuildInProgress =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
     public IndexingService(SimpleVectorStore vectorStore,
                            ChunkingService chunkingService,
                            @Qualifier("embeddingExecutor") Executor embeddingExecutor,
@@ -154,26 +158,46 @@ public class IndexingService {
                 "chunkIndex", String.valueOf(chunk.index())));
     }
 
-    /** 全量重建。返回重建后的状态。 */
+    /**
+     * 全量重建。返回重建后的状态。
+     *
+     * <p>同一时刻只允许一个重建在跑：该操作要遍历全部条目并调用外部向量接口，
+     * 并发触发会互相拖慢并可能打满线程池。已经在重建时直接返回当前状态，
+     * 而不是排队等待——排队会让调用方长时间挂住。
+     */
     public IndexStatus rebuildAll() {
-        Set<Long> itemIds = contentLoader.allIndexableItemIds();
-        int succeeded = 0;
-        int failed = 0;
-
-        for (Long itemId : itemIds) {
-            try {
-                indexItem(itemId);
-                succeeded++;
-            } catch (Exception e) {
-                failed++;
-                log.warn("[RAG] 条目 {} 重建失败: {}", itemId, e.getMessage());
-            }
+        if (!rebuildInProgress.compareAndSet(false, true)) {
+            log.warn("[RAG] 已有重建在进行中，本次请求直接返回当前状态");
+            return status();
         }
+        try {
+            // 先清空旧索引。只做增量会留下「数据库里已不存在」的僵尸块：
+            // 例如数据库被重置后条目 id 变化，旧块仍在索引里，
+            // 导致规模虚高、计数失真，且这些块永远无法回收。
+            // 实测发现过索引里有已删除条目的块。
+            clearIndex();
 
-        lastRebuildAt = LocalDateTime.now();
-        log.info("[RAG] 全量重建完成：成功 {}，失败 {}，可索引条目 {}",
-                succeeded, failed, itemIds.size());
-        return status();
+            Set<Long> itemIds = contentLoader.allIndexableItemIds();
+            int succeeded = 0;
+            int failed = 0;
+
+            for (Long itemId : itemIds) {
+                try {
+                    indexItem(itemId);
+                    succeeded++;
+                } catch (Exception e) {
+                    failed++;
+                    log.warn("[RAG] 条目 {} 重建失败: {}", itemId, e.getMessage());
+                }
+            }
+
+            lastRebuildAt = LocalDateTime.now();
+            log.info("[RAG] 全量重建完成：成功 {}，失败 {}，可索引条目 {}",
+                    succeeded, failed, itemIds.size());
+            return status();
+        } finally {
+            rebuildInProgress.set(false);
+        }
     }
 
     public IndexStatus status() {
@@ -187,6 +211,19 @@ public class IndexingService {
                 .distinct()
                 .count();
         return new IndexStatus(true, items, documents.size(), lastRebuildAt);
+    }
+
+    /** 清空整个索引。用于全量重建前，确保索引与数据库一致。 */
+    private void clearIndex() {
+        try {
+            List<String> ids = allDocuments().stream().map(Document::getId).toList();
+            if (!ids.isEmpty()) {
+                vectorStore.delete(ids);
+                log.info("[RAG] 重建前清空旧索引，移除 {} 个块", ids.size());
+            }
+        } catch (Exception e) {
+            log.warn("[RAG] 清空索引失败: {}", e.getMessage());
+        }
     }
 
     /**

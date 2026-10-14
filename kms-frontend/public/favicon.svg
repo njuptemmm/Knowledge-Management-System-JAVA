@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- 书本 + 分类层级：知识库的两个核心概念 -->
+  <rect width="32" height="32" rx="6" fill="#2080f0"/>
+  <g fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 9h7v14H8z"/>
+    <path d="M17 9h7v14h-7z"/>
+    <path d="M11.5 13h0M20.5 13h0"/>
+  </g>
+  <path d="M15 16h2" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+</svg>

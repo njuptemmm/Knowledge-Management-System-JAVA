@@ -88,6 +88,58 @@ class KnowledgeServiceTest {
     }
 
     @Test
+    void create_by_tag_names_creates_missing_tags() {
+        // 编辑器提交的是标签名（新标签没有 id），后端要能自动创建
+        loginAs(2L, "USER");
+        when(itemMapper.insert(any(KnowledgeItem.class))).thenAnswer(inv -> {
+            ((KnowledgeItem) inv.getArgument(0)).setId(102L);
+            return 1;
+        });
+        KnowledgeSaveRequest request = req("带新标签");
+        request.setTagNames(List.of("全新标签", "另一个"));
+
+        knowledgeService.create(request);
+
+        verify(tagService).replaceTagsByNames(102L, List.of("全新标签", "另一个"));
+        verify(tagService, never()).replaceTags(any(Long.class), any());
+    }
+
+    @Test
+    void tag_names_take_precedence_over_tag_ids() {
+        // 同时提交两者时语义必须明确：以名称为准，避免出现两套标签
+        loginAs(2L, "USER");
+        when(itemMapper.insert(any(KnowledgeItem.class))).thenAnswer(inv -> {
+            ((KnowledgeItem) inv.getArgument(0)).setId(103L);
+            return 1;
+        });
+        KnowledgeSaveRequest request = req("两者都传");
+        request.setTagIds(List.of(1L, 2L));
+        request.setTagNames(List.of("按名称"));
+
+        knowledgeService.create(request);
+
+        verify(tagService).replaceTagsByNames(103L, List.of("按名称"));
+        verify(tagService, never()).replaceTags(any(Long.class), any());
+    }
+
+    @Test
+    void create_without_any_tags_still_uses_the_id_path() {
+        // tagNames 为 null 表示走旧的 id 通道，不能误判成"清空标签"
+        loginAs(2L, "USER");
+        when(itemMapper.insert(any(KnowledgeItem.class))).thenAnswer(inv -> {
+            ((KnowledgeItem) inv.getArgument(0)).setId(104L);
+            return 1;
+        });
+        KnowledgeSaveRequest request = req("只传 id");
+        request.setTagIds(List.of(1L));
+
+        knowledgeService.create(request);
+
+        verify(tagService).replaceTags(104L, List.of(1L));
+        verify(tagService, never()).replaceTagsByNames(any(Long.class), any());
+    }
+
+    @Test
     void create_trims_title() {
         loginAs(2L, "USER");
         when(itemMapper.insert(any(KnowledgeItem.class))).thenAnswer(inv -> {

@@ -195,10 +195,20 @@ else if (res.data.code !== 0) { /* 弹 message */ }
 
 ```json
 { "title": "标题", "summary": "摘要", "content": "# 正文",
-  "contentType": "MARKDOWN", "categoryId": 2, "tagIds": [1, 3] }
+  "contentType": "MARKDOWN", "categoryId": 2,
+  "tagNames": ["入门", "新标签"] }
 ```
 
 新建的条目状态固定为 `DRAFT`，作者取当前登录用户。
+
+**标签有两种提交方式，二者只取其一**：
+
+| 字段 | 适用场景 |
+|---|---|
+| `tagNames` | **编辑器用这个。** 按名称提交，不存在的标签自动创建，最多 10 个、单个不超过 50 字 |
+| `tagIds` | 调用方已知标签 id 时使用 |
+
+`tagNames` 非 null 时 `tagIds` 被忽略。两者都不传表示清空标签。
 
 ### PUT `/api/knowledge/{id}` （需登录，仅作者或管理员）
 

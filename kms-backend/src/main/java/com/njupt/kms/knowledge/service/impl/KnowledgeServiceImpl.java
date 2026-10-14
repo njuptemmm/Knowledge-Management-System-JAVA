@@ -56,7 +56,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         item.setViewCount(0);
         itemMapper.insert(item);
 
-        tagService.replaceTags(item.getId(), request.getTagIds());
+        applyTags(item.getId(), request);
         return toDetailVO(item);
     }
 
@@ -75,7 +75,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         item.setCategoryId(request.getCategoryId());
         itemMapper.updateById(item);
 
-        tagService.replaceTags(id, request.getTagIds());
+        applyTags(id, request);
         // 只有已发布的条目在索引里，草稿的编辑不必触发重建
         if (STATUS_PUBLISHED.equals(item.getStatus())) {
             eventPublisher.publishEvent(KnowledgeIndexEvent.upsert(id));
@@ -172,6 +172,18 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     @Override
     public KnowledgeItem getEntity(Long id) {
         return requireExisting(id);
+    }
+
+    /**
+     * 写入标签。tagNames 优先于 tagIds —— 编辑器提交的是名称（新标签没有 id），
+     * 其余调用方提交 id。两者都为空时表示清空标签。
+     */
+    private void applyTags(Long itemId, KnowledgeSaveRequest request) {
+        if (request.getTagNames() != null) {
+            tagService.replaceTagsByNames(itemId, request.getTagNames());
+        } else {
+            tagService.replaceTags(itemId, request.getTagIds());
+        }
     }
 
     private KnowledgeItem requireExisting(Long id) {

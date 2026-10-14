@@ -3,6 +3,7 @@ package com.njupt.kms.qa.controller;
 import com.njupt.kms.common.BusinessException;
 import com.njupt.kms.qa.index.IndexingService;
 import com.njupt.kms.qa.service.QaHistoryService;
+import com.njupt.kms.qa.dto.QaAskRequest;
 import com.njupt.kms.qa.service.QaService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.codec.ServerSentEvent;
@@ -49,13 +50,20 @@ class QaControllerDegradationTest {
                         new com.njupt.kms.qa.config.RagProperties(), id -> null));
     }
 
+    private QaAskRequest req(String question, String chatId) {
+        QaAskRequest r = new QaAskRequest();
+        r.setQuestion(question);
+        r.setChatId(chatId);
+        return r;
+    }
+
     private List<ServerSentEvent<Object>> collect(Flux<ServerSentEvent<Object>> flux) {
         return flux.collectList().block();
     }
 
     @Test
     void disabled_rag_yields_a_single_error_event_with_a_readable_message() {
-        Flux<ServerSentEvent<Object>> flux = controller(new DisabledQaService()).ask("问题", null);
+        Flux<ServerSentEvent<Object>> flux = controller(new DisabledQaService()).ask(req("问题", null));
 
         List<ServerSentEvent<Object>> events = collect(flux);
 
@@ -68,7 +76,7 @@ class QaControllerDegradationTest {
 
     @Test
     void successful_ask_emits_sources_then_deltas_then_done() {
-        Flux<ServerSentEvent<Object>> flux = controller(new WorkingQaService()).ask("问题", "chat-1");
+        Flux<ServerSentEvent<Object>> flux = controller(new WorkingQaService()).ask(req("问题", "chat-1"));
 
         List<ServerSentEvent<Object>> events = collect(flux);
 
@@ -78,7 +86,7 @@ class QaControllerDegradationTest {
 
     @Test
     void done_event_carries_the_conversation_id_so_the_client_can_continue_it() {
-        Flux<ServerSentEvent<Object>> flux = controller(new WorkingQaService()).ask("问题", "chat-1");
+        Flux<ServerSentEvent<Object>> flux = controller(new WorkingQaService()).ask(req("问题", "chat-1"));
 
         List<ServerSentEvent<Object>> events = collect(flux);
         ServerSentEvent<Object> done = events.get(events.size() - 1);
@@ -88,7 +96,7 @@ class QaControllerDegradationTest {
 
     @Test
     void generated_conversation_id_is_returned_when_client_omits_it() {
-        Flux<ServerSentEvent<Object>> flux = controller(new WorkingQaService()).ask("问题", null);
+        Flux<ServerSentEvent<Object>> flux = controller(new WorkingQaService()).ask(req("问题", null));
 
         List<ServerSentEvent<Object>> events = collect(flux);
         ServerSentEvent<Object> done = events.get(events.size() - 1);
@@ -106,7 +114,7 @@ class QaControllerDegradationTest {
             }
         };
 
-        List<ServerSentEvent<Object>> events = collect(controller(failing).ask("问题", null));
+        List<ServerSentEvent<Object>> events = collect(controller(failing).ask(req("问题", null)));
 
         assertThat(events).extracting(ServerSentEvent::event).contains("error");
         // 内部异常细节不外泄

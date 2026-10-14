@@ -9,18 +9,20 @@ import com.njupt.kms.qa.index.IndexingService;
 import com.njupt.kms.qa.service.QaHistoryService;
 import com.njupt.kms.qa.service.QaService;
 import com.njupt.kms.security.CurrentUser;
-import jakarta.validation.constraints.NotBlank;
+import com.njupt.kms.qa.dto.QaAskRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 
@@ -47,17 +49,21 @@ public class QaController {
     /**
      * 流式问答。公开接口——未登录也能提问，但只能基于已发布内容。
      *
+     * <p>用 POST + 请求体而非 GET：问题可以很长，中文经 URL 编码后长度膨胀数倍，
+     * 放在查询参数里会撞上 URL 长度上限并返回 400（实测 1500 字即触发）。
+     * 前端本来也必须用 fetch 而不是 EventSource（后者无法带 Authorization 头），
+     * 因此 POST 不带来额外成本。
+     *
      * <p>错误一律以 {@code error} 事件结束流，而不是抛出异常：
      * SSE 响应一旦开始，抛异常只会让前端拿到一个断掉的连接，拿不到原因。
      */
-    @GetMapping(value = "/ask", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<Object>> ask(
-            @RequestParam("question") @NotBlank String question,
-            @RequestParam(value = "chatId", required = false) String chatId) {
+    @PostMapping(value = "/ask", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<Object>> ask(@Valid @RequestBody QaAskRequest request) {
 
-        String conversationId = (chatId == null || chatId.isBlank())
-                ? UUID.randomUUID().toString().replace("-", "")
-                : chatId;
+        String question = request.getQuestion();
+        String conversationId = StringUtils.hasText(request.getChatId())
+                ? request.getChatId()
+                : UUID.randomUUID().toString().replace("-", "");
 
         try {
             // 可见性判定发生在 RetrievalService 内部（按 CurrentUser）

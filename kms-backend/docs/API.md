@@ -341,7 +341,103 @@ else if (res.data.code !== 0) { /* 弹 message */ }
 
 ---
 
-## 7. 接口清单速查
+## 7. 智能问答（RAG，v0.1.0 新增）
+
+> 未配置密钥时该功能整体关闭，`/api/qa/ask` 会返回一个 `error` 事件说明原因。
+> **其余接口完全不受影响。**
+
+### POST `/api/qa/ask` （公开）
+
+**用 POST + JSON 而不是 GET**：问题可以很长，中文经 URL 编码后长度会膨胀数倍，
+放在查询参数里会撞上 URL 长度上限并返回 400（实测 1500 字即触发）。
+
+**请求**
+
+```json
+{ "question": "MySQL 索引用了什么数据结构？为什么？", "chatId": "可选，续接已有会话" }
+```
+
+`chatId` 省略时服务端会新建一个并在 `done` 事件里回传。
+
+**响应：`text/event-stream`**
+
+| event | data | 出现次数 |
+|---|---|---|
+| `sources` | `[{itemId, title, headingPath, score}]` | 一次，最先发出 |
+| `delta` | 字符串片段 | 多次，逐字追加 |
+| `done` | `{"chatId": "..."}` | 一次，结束 |
+| `error` | `{"message": "..."}` | 出错时，之后流结束 |
+
+**引用来源先于答案发出**，因此前端可以立刻渲染引用卡片，用户先看到"系统找到了什么"，
+再等答案逐字出现——而不是盯着空白等几秒。
+
+**前端消费示例**
+
+```js
+// 必须用 fetch，不能用 EventSource：
+// EventSource 不能自定义请求头，无法携带 Authorization
+const resp = await fetch('http://localhost:8090/api/qa/ask', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+  body: JSON.stringify({ question, chatId })
+})
+const reader = resp.body.getReader()
+const decoder = new TextDecoder()
+let buffer = ''
+for (;;) {
+  const { done, value } = await reader.read()
+  if (done) break
+  buffer += decoder.decode(value, { stream: true })
+  // 按空行切分 SSE 事件
+  const parts = buffer.split('\n\n')
+  buffer = parts.pop()
+  for (const part of parts) {
+    const event = /event:(.*)/.exec(part)?.[1]?.trim()
+    const data = /data:(.*)/.exec(part)?.[1]?.trim()
+    if (!event || !data) continue
+    if (event === 'sources') setSources(JSON.parse(data))
+    else if (event === 'delta') appendAnswer(JSON.parse(data))
+    else if (event === 'error') showError(JSON.parse(data).message)
+  }
+}
+```
+
+> **注意**：答案正文里的 `[1]` `[2]` 是引用标记，对应 `sources` 数组的下标加一。
+> 前端应把它们渲染成可点击的引用角标，点击跳转到 `/api/knowledge/{itemId}`。
+
+### GET `/api/qa/history/{chatId}` / DELETE `/api/qa/history/{chatId}`
+
+返回/清空会话历史。每条消息形如：
+
+```json
+{ "role": "assistant", "content": "答案正文…",
+  "sources": [{"itemId": 9, "title": "MySQL 索引原理", "headingPath": "为什么用 B+ 树", "score": 0.71}],
+  "at": "2026-10-14T01:49:00.123" }
+```
+
+会话保留 7 天，单会话最多 40 条消息。
+
+### GET `/api/qa/status` （公开）
+
+```json
+{ "code": 0, "message": "ok",
+  "data": { "enabled": true, "indexedItems": 17, "indexedChunks": 56,
+            "lastRebuildAt": "2026-10-14T01:49:00.315" } }
+```
+
+`enabled=false` 时前端应隐藏问答入口或提示未配置。
+
+### POST `/api/qa/reindex` （需登录）
+
+全量重建索引。**耗时十余秒**（17 个条目约 12 秒），前端必须给出明确的等待反馈，
+不能只显示一个转圈图标而没有文案。
+
+**问答的可见性规则与列表、检索接口完全一致**：未登录只能基于已发布内容；
+草稿与归档条目的内容既不在索引里，召回后还会再按真实权限过滤一次。
+
+---
+
+## 8. 接口清单速查
 
 | 方法 | 路径 | 鉴权 |
 |---|---|---|
@@ -361,6 +457,11 @@ else if (res.data.code !== 0) { /* 弹 message */ }
 | POST | `/api/knowledge/{id}/archive` | 需登录（作者/管理员） |
 | POST | `/api/knowledge/{id}/restore` | 需登录（作者/管理员） |
 | GET | `/api/search` | 公开（未登录只见 PUBLISHED） |
+| POST | `/api/qa/ask` | 公开（未登录只见 PUBLISHED 内容） |
+| GET | `/api/qa/history/{chatId}` | 需登录 |
+| DELETE | `/api/qa/history/{chatId}` | 需登录 |
+| GET | `/api/qa/status` | 公开 |
+| POST | `/api/qa/reindex` | 需登录 |
 | GET | `/api/tags` | 公开 |
 | POST | `/api/attachments/upload` | 需登录（作者/管理员） |
 | GET | `/api/attachments/{id}/text` | 需登录 |
@@ -370,7 +471,7 @@ else if (res.data.code !== 0) { /* 弹 message */ }
 
 ---
 
-## 8. 测试账号（来自 `sql/seed.sql`）
+## 9. 测试账号（来自 `sql/seed.sql`）
 
 | 用户名 | 密码 | 角色 |
 |---|---|---|
@@ -381,7 +482,7 @@ else if (res.data.code !== 0) { /* 弹 message */ }
 
 ---
 
-## 9. 已知限制
+## 10. 已知限制
 
 1. **分类不可移动**：`PUT /api/categories/{id}` 会忽略 `parentId`。前端编辑表单应把父分类设为只读展示。
 2. **混合关键词检索**：如 `Java 索引`，因含中文会归入 ngram 路径，只命中中文部分（`Java` 部分丢失）。纯英文或纯中文关键词均正常。

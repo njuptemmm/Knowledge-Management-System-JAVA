@@ -4,6 +4,7 @@ import com.njupt.kms.ingestion.entity.Attachment;
 import com.njupt.kms.ingestion.event.AttachmentUploadedEvent;
 import com.njupt.kms.ingestion.mapper.AttachmentMapper;
 import com.njupt.kms.ingestion.parser.ParserFactory;
+import com.njupt.kms.ingestion.parser.TextNormalizer;
 import com.njupt.kms.ingestion.parser.TextParser;
 import com.njupt.kms.ingestion.storage.FileStorage;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +51,8 @@ public class AttachmentParseListener {
             try (InputStream in = fileStorage.load(attachment.getStoredPath()).getInputStream()) {
                 text = parser.parse(in);
             }
+            // PDF 内嵌字体常把汉字映射成康熙部首等兼容码点，不归一化就搜不到
+            text = TextNormalizer.normalizeCompatibilityCharacters(text);
 
             attachment.setParsedText(text);
             markStatus(attachment, Attachment.STATUS_DONE, null);

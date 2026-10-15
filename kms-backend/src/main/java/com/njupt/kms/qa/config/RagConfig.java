@@ -29,9 +29,8 @@ public class RagConfig {
     /**
      * 问答生成用的 ChatClient。
      *
-     * <p>温度必须为 1：Moonshot 的 kimi-k2.6 只接受 1，传其他值直接 HTTP 400
-     * （实测：{@code invalid temperature: only 1 is allowed for this model}）。
-     * 该值固定写在 application.yaml 的 {@code spring.ai.openai.chat.options.temperature}。
+     * <p>模型与参数写在 application.yaml 的 {@code spring.ai.openai.chat.options.*}：
+     * 用 OpenAI 兼容协议指向 DeepSeek，与向量用的火山方舟完全独立，两者互不影响。
      */
     @Bean
     public ChatClient qaChatClient(OpenAiChatModel model) {

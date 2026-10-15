@@ -72,8 +72,14 @@ public class QaController {
             Flux<ServerSentEvent<Object>> sources = Flux.just(
                     ServerSentEvent.builder().event("sources").data(answer.sources()).build());
 
+            // delta 必须包成 JSON 对象再发，不能直接丢裸字符串。
+            // 换行在 SSE 里是字段分隔符：模型输出的 "\n" 会被写成空 data 行，
+            // 客户端无法区分「一个换行」和「没有内容」，换行与空格就这样被静默丢掉——
+            // 实测一段含 6 个换行的 Markdown 列表，经 SSE 传出去后换行数变成 0，
+            // 渲染出来就是一整段连在一起的文字。JSON 编码会把换行转义成 \n，安全穿过 SSE。
             Flux<ServerSentEvent<Object>> deltas = answer.stream()
-                    .map(token -> ServerSentEvent.builder().event("delta").data(token).build());
+                    .map(token -> ServerSentEvent.builder().event("delta")
+                            .data(Map.of("text", token)).build());
 
             Flux<ServerSentEvent<Object>> done = Flux.just(
                     ServerSentEvent.builder().event("done")

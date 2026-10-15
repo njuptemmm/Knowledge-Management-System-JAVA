@@ -48,6 +48,7 @@ export async function ask(params: AskCallbacks): Promise<void> {
       for (const chunk of chunks) {
         dispatch(chunk, params)
       }
+
     }
     // 处理最后一个没有以空行收尾的事件
     if (buffer.trim()) dispatch(buffer, params)
@@ -63,30 +64,44 @@ function dispatch(chunk: string, params: AskCallbacks) {
   const dataLines: string[] = []
   for (const line of chunk.split('\n')) {
     if (line.startsWith('event:')) event = line.slice(6).trim()
-    else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim())
+    else if (line.startsWith('data:')) dataLines.push(line.slice(5).replace(/^ /, ''))
   }
   if (!event || dataLines.length === 0) return
 
+  // 只用 '\n' 拼接多行 data（SSE 规范），这里不再 trim 单个片段：
+  // 内容的空白属于内容本身，交给 JSON 解析去处理
   const raw = dataLines.join('\n')
+
+  let parsed: unknown
   try {
-    const parsed = JSON.parse(raw)
-    switch (event) {
-      case 'sources':
-        params.onSources(Array.isArray(parsed) ? parsed : [])
-        break
-      case 'delta':
-        params.onDelta(typeof parsed === 'string' ? parsed : String(parsed))
-        break
-      case 'done':
-        params.onDone(parsed?.chatId ?? '')
-        break
-      case 'error':
-        params.onError(parsed?.message ?? '生成失败')
-        break
-    }
+    parsed = JSON.parse(raw)
   } catch {
-    // 不是 JSON 时按纯文本处理，避免一个畸形事件中断整个流
+    // 不是 JSON 时按纯文本兜底，避免一个畸形事件中断整个流
     if (event === 'delta') params.onDelta(raw)
+    return
+  }
+
+  switch (event) {
+    case 'sources':
+      params.onSources(Array.isArray(parsed) ? parsed : [])
+      break
+    case 'delta': {
+      // 后端把片段包成 { text } 发送，换行与空格才能安全穿过 SSE
+      const text =
+        parsed && typeof parsed === 'object' && 'text' in parsed
+          ? String((parsed as { text: unknown }).text ?? '')
+          : typeof parsed === 'string'
+            ? parsed
+            : String(parsed ?? '')
+      params.onDelta(text)
+      break
+    }
+    case 'done':
+      params.onDone((parsed as { chatId?: string })?.chatId ?? '')
+      break
+    case 'error':
+      params.onError((parsed as { message?: string })?.message ?? '生成失败')
+      break
   }
 }
 

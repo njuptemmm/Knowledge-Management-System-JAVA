@@ -547,7 +547,16 @@ def test_qa(app):
     check("K5 引用先于答案出现", sources_at is not None and answer_at is not None
           and sources_at <= answer_at,
           "引用 %.1fs / 答案 %.1fs" % (sources_at or -1, answer_at or -1))
-    check("K6 引用可点击", app.count('.msg.assistant a[href^="#cite-"]') > 0)
+    # 等生成结束后再断言引用与排版：
+    # 引用角标是随答案一起流式出现的，刚出首个字时还没到，
+    # 那一刻检查会得到假失败（实际踩过）
+    for _ in range(80):
+        if app.page.locator(".caret").count() == 0:
+            break
+        app.page.wait_for_timeout(500)
+
+    check("K6 引用可点击", app.count('.msg.assistant a[href^="#cite-"]') > 0,
+          "%d 个引用角标" % app.count('.msg.assistant a[href^="#cite-"]'))
     check("K7 答案里的 Markdown 已渲染（无残留星号）",
           "**" not in app.text(".msg.assistant .bubble"),
           app.text(".msg.assistant .bubble")[:60].replace("\n", " "))

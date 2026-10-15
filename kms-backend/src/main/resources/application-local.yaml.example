@@ -19,9 +19,9 @@ spring:
 
   ai:
     openai:
-      # Kimi (Moonshot) —— 仅用于问答生成。从 https://platform.moonshot.cn 获取
-      # 注意：kimi-k2.6 的 temperature 只能为 1，已在 application.yaml 固定
-      api-key: sk-YOUR_KIMI_API_KEY_HERE
+      # DeepSeek —— 仅用于问答生成。从 https://platform.deepseek.com 获取
+      # 模型 deepseek-flash（推理模型），走 OpenAI 兼容端点
+      api-key: sk-YOUR_DEEPSEEK_API_KEY_HERE
 
 app:
   rag:

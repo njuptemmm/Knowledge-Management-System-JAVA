@@ -88,7 +88,12 @@
             <version>5.3.0</version>
         </dependency>
 
-        <!-- Spring AI：只用它的 ChatClient 调 Moonshot 做流式生成。
+        <!-- Spring AI：只用它的 ChatClient 做流式生成，指向 DeepSeek 的
+             OpenAI 兼容端点。不走 /anthropic 兼容端点：deepseek-flash 是推理模型，
+             那边的流式响应会带 thinking 内容块，Spring AI 1.0.0-M6 的解析器
+             不认识该类型，会直接抛 InvalidTypeIdException。
+             OpenAI 端点把推理内容放在独立的 reasoning_content 字段里，
+             不进 content，因此不会污染答案。
              向量不走它的自动配置——火山方舟的向量模型只支持多模态端点，
              由自研的 VolcArkEmbeddingModel 实现。 -->
         <dependency>

@@ -31,19 +31,25 @@ spring:
 
   ai:
     openai:
-      base-url: https://api.moonshot.cn
+      # DeepSeek 的 OpenAI 兼容端点。
+      # 不用 /anthropic 端点：那边的流式响应含 thinking 内容块，
+      # Spring AI 1.0.0-M6 不认识该类型会直接报错（见 pom.xml 的说明）。
+      base-url: https://api.deepseek.com
       # 真实密钥由 application-local.yaml 覆盖。
       # 这里给一个占位默认值是必要的：Spring AI 的自动配置以 api-key 存在为前提，
       # 完全不给会导致应用启动失败，而未启用 RAG 时我们并不需要它。
-      api-key: ${KIMI_API_KEY:not-configured}
+      api-key: ${DEEPSEEK_API_KEY:not-configured}
       chat:
         options:
-          model: kimi-k2.6
-          # kimi-k2.6 只接受温度 1，改别的值直接 HTTP 400
-          # （实测：invalid temperature: only 1 is allowed for this model）
-          temperature: 1
-      # 向量不走 OpenAI 自动配置：火山方舟的向量模型只支持 /embeddings/multimodal，
-      # 由自研的 VolcArkEmbeddingModel 调用。此 bean 必须禁用，否则两者冲突。
+          model: deepseek-flash
+          # deepseek-flash 先产出推理内容再产出正文，max-tokens 要留足，
+          # 否则会出现「想完了但没额度写答案」（实测 64 就复现）
+          max-tokens: 16384
+          # 刻意不设 temperature：DeepSeek 的推理模型对采样参数另有约束，
+          # 用服务端默认值更稳
+      # 必须禁用 OpenAI 自动配置的向量 bean：向量走火山方舟（只支持多模态端点），
+      # 由自研的 VolcArkEmbeddingModel 提供。不禁用的话容器里会有两个
+      # EmbeddingModel，vectorStore 注入时直接报 NoUniqueBeanDefinitionException。
       embedding:
         enabled: false
 

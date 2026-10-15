@@ -35,9 +35,24 @@ const html = computed(() => {
     return `[${n}](#cite-${n})`
   })
 
-  const rendered = marked.parse(withLinks, { async: false }) as string
+  const rendered = marked.parse(normalizeListMarkers(withLinks), { async: false }) as string
   return DOMPurify.sanitize(rendered)
 })
+
+/**
+ * 补上列表符后缺失的空格。
+ *
+ * Markdown 要求列表项是「- 内容」，短横线后必须有空格；但模型有时会输出
+ * 「-内容」，那样整段会被当成普通文字，列表就挤成一行了（实际出现过）。
+ *
+ * 只处理「行首的 - * + 紧跟加粗标记或中日韩字符」这一种情形——
+ * 这样不会误伤 `-5 度` 这类行首负数，也不会动正文里正常的连字符。
+ */
+const LIST_MARKER_MISSING_SPACE = /^([ \t]*)([-*+])(?=\*\*|[一-鿿　-〿])/gm
+
+function normalizeListMarkers(text: string): string {
+  return text.replace(LIST_MARKER_MISSING_SPACE, '$1$2 $3')
+}
 
 function onClick(event: MouseEvent) {
   const anchor = (event.target as HTMLElement)?.closest('a')

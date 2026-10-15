@@ -8,7 +8,7 @@ RAG 智能问答 端到端测试。
 
 前置条件
 --------
-1. `application-local.yaml` 已配置好 `spring.ai.openai.api-key`（Kimi）
+1. `application-local.yaml` 已配置好 `spring.ai.openai.api-key`（DeepSeek）
    与 `app.rag.embedding.*`（火山方舟），且 `app.rag.enabled: true`
 2. 后端已启动：cd kms-backend && mvn spring-boot:run
 3. 数据库已重置为 seed 初始状态
@@ -86,7 +86,11 @@ def ask(question, chat_id=None, token=None):
                     if event == "sources":
                         sources = payload
                     elif event == "delta":
-                        answer.append(payload if isinstance(payload, str) else str(payload))
+                        # 后端把片段包成 {"text": "..."} 发，换行与空格才能穿过 SSE
+                        if isinstance(payload, dict):
+                            answer.append(str(payload.get("text", "")))
+                        else:
+                            answer.append(str(payload))
                     elif event == "error":
                         error = payload.get("message") if isinstance(payload, dict) else str(payload)
                     elif event == "done":

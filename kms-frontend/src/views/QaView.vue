@@ -53,14 +53,20 @@ async function submit() {
   }
 
   messages.value.push({ role: 'user', content: text, sources: [], at: new Date().toISOString() })
-  const assistant: ChatItem = {
+  messages.value.push({
     role: 'assistant',
     content: '',
     sources: [],
     at: new Date().toISOString(),
     streaming: true
-  }
-  messages.value.push(assistant)
+  })
+
+  // **必须取回响应式代理再改，不能拿着 push 进去的原始对象改。**
+  // 数组代理存的是原始对象，模板读取时才会包成 proxy 并建立依赖；
+  // 直接改原始对象绕过了 proxy 的 set，trigger 不会触发，
+  // 界面就一直不更新，直到别的状态变化顺带刷新一次——
+  // 表现就是「后端在流式输出，前端一次性蹦出全文」。实测踩过。
+  const assistant = messages.value[messages.value.length - 1]!
 
   question.value = ''
   asking.value = true
@@ -225,7 +231,15 @@ onMounted(async () => {
               @cite="(n) => msg.sources[n - 1] && goSource(msg.sources[n - 1]!.itemId)"
             />
             <span v-if="msg.streaming" class="caret">▍</span>
-            <span v-if="!msg.content && msg.streaming" class="thinking">正在检索并生成…</span>
+            <!-- 分两段提示：模型思考期间有 5 秒左右不出字，
+                 只说「正在生成」用户会以为卡住了，说清楚它找到了什么才有底 -->
+            <span v-if="!msg.content && msg.streaming" class="thinking">
+              {{
+                msg.sources.length
+                  ? `已找到 ${msg.sources.length} 条相关资料，正在生成答案…`
+                  : '正在检索知识库…'
+              }}
+            </span>
           </div>
         </div>
       </div>

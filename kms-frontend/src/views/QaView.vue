@@ -428,12 +428,12 @@ onMounted(async () => {
 }
 
 .session-item:hover {
-  background: #f2f5fa;
+  background: var(--kms-surface-hover);
 }
 
 /* 当前会话用左侧色条标记，比整块变色更安静，也不影响文字对比度 */
 .session-item.active {
-  background: #eef4ff;
+  background: var(--kms-accent-soft);
   border-left-color: var(--kms-primary);
 }
 
@@ -527,8 +527,8 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  background: #e8eef7;
-  color: #2a4d7a;
+  background: var(--kms-avatar-bg);
+  color: var(--kms-avatar-text);
 }
 
 .msg.user .avatar {
@@ -541,8 +541,8 @@ onMounted(async () => {
 }
 
 .sources {
-  background: #f6f9ff;
-  border: 1px solid #dbe7fb;
+  background: var(--kms-accent-bg);
+  border: 1px solid var(--kms-accent-border);
   border-radius: 8px;
   padding: 10px 12px;
   margin-bottom: 6px;
@@ -571,7 +571,7 @@ onMounted(async () => {
 }
 
 .source:hover {
-  background: #eaf1ff;
+  background: var(--kms-accent-hover);
 }
 
 .ref-index {
@@ -590,7 +590,7 @@ onMounted(async () => {
 }
 
 .bubble {
-  background: #fff;
+  background: var(--kms-surface);
   border: 1px solid var(--kms-border);
   border-radius: 8px;
   padding: 10px 14px;

@@ -79,6 +79,6 @@ function renderLabel(option: { label?: string; value: string }): VNodeChild {
 .tag-error {
   margin: 4px 0 0;
   font-size: 12px;
-  color: #d03050;
+  color: var(--kms-danger);
 }
 </style>

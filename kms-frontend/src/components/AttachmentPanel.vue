@@ -183,7 +183,7 @@ watch(() => props.itemId, load)
 
 <style scoped>
 .panel {
-  background: #fff;
+  background: var(--kms-surface);
   border: 1px solid var(--kms-border);
   border-radius: 8px;
   padding: 14px 16px;
@@ -245,7 +245,7 @@ watch(() => props.itemId, load)
 .err {
   margin-top: 4px;
   font-size: 12px;
-  color: #d03050;
+  color: var(--kms-danger);
 }
 
 .preview {
@@ -261,7 +261,7 @@ watch(() => props.itemId, load)
 .preview pre {
   margin: 6px 0 0;
   padding: 8px;
-  background: #fafafa;
+  background: var(--kms-surface-subtle);
   border-radius: 4px;
   max-height: 220px;
   overflow: auto;

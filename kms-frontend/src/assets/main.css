@@ -1,9 +1,62 @@
+/**
+ * 全局设计变量。明暗两套主题通过 `[data-theme]` 切换，
+ * 业务样式一律引用变量，不得再写死颜色。
+ */
+
 :root {
+  color-scheme: light;
   --kms-bg: #f7f8fa;
+  --kms-surface: #ffffff;
+  --kms-surface-subtle: #fafafa;
+  --kms-surface-hover: #f2f5fa;
   --kms-border: #e5e7eb;
   --kms-text: #1f2329;
   --kms-text-secondary: #646a73;
   --kms-primary: #2080f0;
+  --kms-danger: #d03050;
+  --kms-shadow: 0 2px 10px rgba(32, 128, 240, 0.1);
+  --kms-shadow-lg: 0 6px 24px rgba(0, 0, 0, 0.08);
+  --kms-mark-bg: #fff3b0;
+  --kms-code-bg: rgba(0, 0, 0, 0.05);
+  --kms-pre-bg: #f6f8fa;
+
+  /* 语义强调色：会话、引用、头像等「需要被注意到」的点缀区 */
+  --kms-accent-soft: #eef4ff;
+  --kms-accent-hover: #eaf1ff;
+  --kms-accent-bg: #f6f9ff;
+  --kms-accent-border: #dbe7fb;
+  --kms-avatar-bg: #e8eef7;
+  --kms-avatar-text: #2a4d7a;
+
+  /* 登录页背景 */
+  --kms-login-bg: linear-gradient(160deg, #eef4ff 0%, #f7f8fa 60%);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --kms-bg: #14161c;
+  --kms-surface: #1c1f27;
+  --kms-surface-subtle: #22262f;
+  --kms-surface-hover: #262b36;
+  --kms-border: #2e3440;
+  --kms-text: #e4e7ee;
+  --kms-text-secondary: #9aa3b2;
+  --kms-primary: #4c9dff;
+  --kms-danger: #e15b78;
+  --kms-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  --kms-shadow-lg: 0 6px 24px rgba(0, 0, 0, 0.45);
+  --kms-mark-bg: #6b5608;
+  --kms-code-bg: rgba(255, 255, 255, 0.07);
+  --kms-pre-bg: #171a21;
+
+  --kms-accent-soft: #1e2c45;
+  --kms-accent-hover: #243450;
+  --kms-accent-bg: #1b2740;
+  --kms-accent-border: #31466b;
+  --kms-avatar-bg: #26324a;
+  --kms-avatar-text: #8fb8f5;
+
+  --kms-login-bg: linear-gradient(160deg, #1b2740 0%, #14161c 60%);
 }
 
 * {
@@ -25,6 +78,7 @@ body {
     'Microsoft YaHei', sans-serif;
   font-size: 14px;
   line-height: 1.6;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 a {
@@ -34,7 +88,7 @@ a {
 
 /* 关键词高亮。用背景色而非加粗，避免长段落里视觉噪声过大 */
 mark {
-  background: #fff3b0;
+  background: var(--kms-mark-bg);
   color: inherit;
   padding: 0 1px;
   border-radius: 2px;
@@ -90,22 +144,23 @@ mark {
   padding: 0.4em 1em;
   color: var(--kms-text-secondary);
   border-left: 3px solid var(--kms-border);
-  background: #fafafa;
+  background: var(--kms-surface-subtle);
 }
 
 .markdown-body code {
   font-family: 'Cascadia Code', Consolas, Monaco, monospace;
   font-size: 0.9em;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--kms-code-bg);
   padding: 0.15em 0.35em;
   border-radius: 3px;
 }
 
 .markdown-body pre {
-  background: #f6f8fa;
+  background: var(--kms-pre-bg);
   padding: 12px 14px;
   border-radius: 6px;
   overflow-x: auto;
+  border: 1px solid var(--kms-border);
 }
 
 .markdown-body pre code {
@@ -127,11 +182,56 @@ mark {
 }
 
 .markdown-body th {
-  background: #fafafa;
+  background: var(--kms-surface-subtle);
   font-weight: 600;
 }
 
 /* 分页与内容区共用的间距 */
 .page-section {
   margin-bottom: 16px;
+}
+
+/* ===== 代码高亮暗色覆盖 =====
+   基础主题只加载亮色版（github.css）；暗色模式用提高优先级的选择器覆盖，
+   避免维护两份 hljs 样式表的加载顺序。 */
+:root[data-theme='dark'] .markdown-body pre code.hljs {
+  background: transparent;
+  color: #d1d7e0;
+}
+
+:root[data-theme='dark'] .hljs-comment,
+:root[data-theme='dark'] .hljs-quote {
+  color: #8b949e;
+}
+
+:root[data-theme='dark'] .hljs-keyword,
+:root[data-theme='dark'] .hljs-selector-tag {
+  color: #ff7b72;
+}
+
+:root[data-theme='dark'] .hljs-string,
+:root[data-theme='dark'] .hljs-regexp {
+  color: #a5d6ff;
+}
+
+:root[data-theme='dark'] .hljs-number,
+:root[data-theme='dark'] .hljs-literal {
+  color: #79c0ff;
+}
+
+:root[data-theme='dark'] .hljs-title,
+:root[data-theme='dark'] .hljs-title.function_ {
+  color: #d2a8ff;
+}
+
+:root[data-theme='dark'] .hljs-title.class_,
+:root[data-theme='dark'] .hljs-type,
+:root[data-theme='dark'] .hljs-built_in {
+  color: #ffa657;
+}
+
+:root[data-theme='dark'] .hljs-attr,
+:root[data-theme='dark'] .hljs-variable,
+:root[data-theme='dark'] .hljs-template-variable {
+  color: #79c0ff;
 }

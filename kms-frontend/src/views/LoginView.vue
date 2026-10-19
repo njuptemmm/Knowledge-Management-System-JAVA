@@ -94,13 +94,13 @@ function fill(name: string, pwd: string) {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: linear-gradient(160deg, #eef4ff 0%, #f7f8fa 60%);
+  background: var(--kms-login-bg);
 }
 
 .login-card {
   width: 100%;
   max-width: 380px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--kms-shadow-lg);
   border-radius: 10px;
 }
 

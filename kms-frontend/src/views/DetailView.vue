@@ -7,6 +7,8 @@ import { describeError } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import type { KnowledgeDetailVO } from '@/types/api'
 import { STATUS_LABEL, STATUS_TYPE, formatDateTime } from '@/utils/format'
+import { tagColorStyle } from '@/utils/tagColor'
+import { isDark } from '@/stores/theme'
 import AppLayout from '@/components/AppLayout.vue'
 import MarkdownView from '@/components/MarkdownView.vue'
 import AttachmentPanel from '@/components/AttachmentPanel.vue'
@@ -128,6 +130,7 @@ watch(id, load)
               round
               :bordered="false"
               class="tag"
+              :color="tagColorStyle(tag, isDark)"
               @click="router.push({ path: '/search', query: { keyword: tag } })"
             >
               {{ tag }}
@@ -162,7 +165,7 @@ watch(id, load)
 
 <style scoped>
 .article {
-  background: #fff;
+  background: var(--kms-surface);
   border: 1px solid var(--kms-border);
   border-radius: 8px;
   padding: 20px 24px;

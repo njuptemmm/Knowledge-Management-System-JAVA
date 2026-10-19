@@ -4,6 +4,7 @@ import {
   NButton,
   NCard,
   NCheckbox,
+  NConfigProvider,
   NDatePicker,
   NDialogProvider,
   NDivider,
@@ -20,6 +21,7 @@ import {
   NTab,
   NTabs,
   NTag,
+  NTooltip,
   NTree,
   NTreeSelect,
   NUpload
@@ -42,6 +44,7 @@ const COMPONENTS: Record<string, Component> = {
   NButton,
   NCard,
   NCheckbox,
+  NConfigProvider,
   NDatePicker,
   NDialogProvider,
   NDivider,
@@ -58,6 +61,7 @@ const COMPONENTS: Record<string, Component> = {
   NTab,
   NTabs,
   NTag,
+  NTooltip,
   NTree,
   NTreeSelect,
   NUpload

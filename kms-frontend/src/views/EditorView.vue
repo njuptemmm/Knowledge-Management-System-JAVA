@@ -227,7 +227,7 @@ onBeforeRouteLeave(() => {
 }
 
 .meta-form {
-  background: #fff;
+  background: var(--kms-surface);
   border: 1px solid var(--kms-border);
   border-radius: 8px;
   padding: 14px 16px 0;
@@ -246,7 +246,7 @@ onBeforeRouteLeave(() => {
 }
 
 .pane {
-  background: #fff;
+  background: var(--kms-surface);
   border: 1px solid var(--kms-border);
   border-radius: 8px;
   padding: 12px;

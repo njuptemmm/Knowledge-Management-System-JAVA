@@ -98,6 +98,6 @@ function onClick(event: MouseEvent) {
 }
 
 .qa-answer :deep(a[href^='#cite-']:hover) {
-  background: #e8f2ff;
+  background: var(--kms-accent-hover);
 }
 </style>

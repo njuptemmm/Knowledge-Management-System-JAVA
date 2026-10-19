@@ -2,6 +2,7 @@
 import { computed, ref, useSlots, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { isDark, toggleTheme } from '@/stores/theme'
 import { useMessage } from 'naive-ui'
 import { describeError } from '@/api/client'
 
@@ -102,6 +103,21 @@ function goLogin() {
       </div>
 
       <div class="actions">
+        <!-- 主题切换放在最左，是全局操作而非账号操作 -->
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <n-button
+              quaternary
+              circle
+              class="theme-btn"
+              :aria-label="isDark ? '切换到浅色模式' : '切换到夜间模式'"
+              @click="toggleTheme"
+            >
+              <span class="theme-icon">{{ isDark ? '☀️' : '🌙' }}</span>
+            </n-button>
+          </template>
+          {{ isDark ? '切换到浅色模式' : '切换到夜间模式' }}
+        </n-tooltip>
         <n-button quaternary size="small" @click="router.push('/qa')">智能问答</n-button>
         <template v-if="auth.isLoggedIn">
           <n-dropdown :options="menuOptions" @select="onMenuSelect">
@@ -137,7 +153,7 @@ function goLogin() {
   gap: 16px;
   height: 56px;
   padding: 0 20px;
-  background: #fff;
+  background: var(--kms-surface);
   border-bottom: 1px solid var(--kms-border);
   position: sticky;
   top: 0;
@@ -163,6 +179,17 @@ function goLogin() {
   gap: 8px;
 }
 
+.theme-btn {
+  font-size: 15px;
+}
+
+/* emoji 在部分系统里偏小，手动拉大到与相邻按钮的视觉重量相当 */
+.theme-icon {
+  display: inline-block;
+  font-size: 15px;
+  line-height: 1;
+}
+
 .body {
   display: flex;
   flex: 1;
@@ -172,7 +199,7 @@ function goLogin() {
 .sidebar {
   width: 220px;
   flex: 0 0 220px;
-  background: #fff;
+  background: var(--kms-surface);
   border-right: 1px solid var(--kms-border);
   padding: 12px;
   position: sticky;

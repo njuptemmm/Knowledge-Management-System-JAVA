@@ -8,6 +8,8 @@ import { usePagedList } from '@/composables/usePagedList'
 import { useAuthStore } from '@/stores/auth'
 import type { CategoryNode, KnowledgeStatus, TagVO } from '@/types/api'
 import { STATUS_LABEL } from '@/utils/format'
+import { tagColorStyle } from '@/utils/tagColor'
+import { isDark } from '@/stores/theme'
 import AppLayout from '@/components/AppLayout.vue'
 import CategoryTree from '@/components/CategoryTree.vue'
 import KeywordHighlight from '@/components/KeywordHighlight.vue'
@@ -197,7 +199,14 @@ onMounted(async () => {
             <n-tag v-if="hit.categoryName" size="tiny" :bordered="false">
               {{ hit.categoryName }}
             </n-tag>
-            <n-tag v-for="t in hit.tags" :key="t" size="tiny" round :bordered="false">
+            <n-tag
+              v-for="t in hit.tags"
+              :key="t"
+              size="tiny"
+              round
+              :bordered="false"
+              :color="tagColorStyle(t, isDark)"
+            >
               {{ t }}
             </n-tag>
           </div>
@@ -257,16 +266,17 @@ onMounted(async () => {
 }
 
 .hit {
-  background: #fff;
+  background: var(--kms-surface);
   border: 1px solid var(--kms-border);
   border-radius: 8px;
   padding: 12px 16px;
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .hit:hover {
   border-color: var(--kms-primary);
+  box-shadow: var(--kms-shadow);
 }
 
 .hit-title {

@@ -2,6 +2,8 @@
 import { useRouter } from 'vue-router'
 import type { KnowledgeListVO } from '@/types/api'
 import { STATUS_LABEL, STATUS_TYPE, formatDateTime } from '@/utils/format'
+import { tagColorStyle } from '@/utils/tagColor'
+import { isDark } from '@/stores/theme'
 import KeywordHighlight from './KeywordHighlight.vue'
 
 const props = defineProps<{
@@ -43,17 +45,18 @@ function open() {
 
 <style scoped>
 .card {
-  background: #fff;
+  background: var(--kms-surface);
   border: 1px solid var(--kms-border);
   border-radius: 8px;
   padding: 14px 16px;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 
 .card:hover {
   border-color: var(--kms-primary);
-  box-shadow: 0 2px 10px rgba(32, 128, 240, 0.1);
+  box-shadow: var(--kms-shadow);
+  transform: translateY(-1px);
 }
 
 .head {

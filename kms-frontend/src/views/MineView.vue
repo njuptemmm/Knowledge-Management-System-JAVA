@@ -164,7 +164,7 @@ onMounted(list.reload)
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #fff;
+  background: var(--kms-surface);
   border: 1px solid var(--kms-border);
   border-radius: 8px;
   padding: 12px 16px;

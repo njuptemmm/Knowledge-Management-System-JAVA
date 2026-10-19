@@ -177,7 +177,7 @@ def attack_authz(admin, user):
         check("3.x 伪/畸形 token 被拒: %r" % bad[:20], code_of(r) == 1002, msg_of(r))
 
     # 登出后的 token
-    tmp = login("zhangsan", "user123")
+    tmp = login("user", "user123")
     request("POST", "/api/auth/logout", token=tmp)
     st, r = request("GET", "/api/auth/me", token=tmp)
     check("3.2 登出后 token 立即失效", code_of(r) == 1002, msg_of(r))
@@ -500,7 +500,7 @@ def health_check(admin):
     check("9.7 账号数据未被破坏，仍可登录", bool(token))
 
     # 用户角色未被注入改写
-    st, r = request("GET", "/api/auth/me", token=login("zhangsan", "user123"))
+    st, r = request("GET", "/api/auth/me", token=login("user", "user123"))
     check("9.8 普通用户角色未被提权", r["data"]["role"] == "USER", r["data"]["role"])
 
 
@@ -514,7 +514,7 @@ def main():
     print("目标: %s" % BASE)
 
     admin = login("admin", "admin123")
-    user = login("zhangsan", "user123")
+    user = login("user", "user123")
     if not admin or not user:
         print("登录失败，请确认后端已启动且数据库已执行 seed.sql")
         return 2

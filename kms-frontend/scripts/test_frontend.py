@@ -490,10 +490,10 @@ def test_mine(app):
 def test_permission(app):
     section("J 权限：普通用户视角")
     app.logout()
-    check("J1 切换到普通用户", app.login("zhangsan", "user123"))
-    check("J2 顶栏显示张三", app.has("张三"))
+    check("J1 切换到普通用户", app.login("user", "user123"))
+    check("J2 顶栏显示 user", app.has("user"))
 
-    # zhangsan 不该看到 admin 的草稿
+    # user 不该看到 admin 的草稿
     app.goto("/mine", wait=1500)
     app.click_text("草稿")
     app.page.wait_for_timeout(1500)

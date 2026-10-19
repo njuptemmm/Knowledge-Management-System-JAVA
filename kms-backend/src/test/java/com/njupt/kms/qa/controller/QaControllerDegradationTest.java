@@ -3,15 +3,19 @@ package com.njupt.kms.qa.controller;
 import com.njupt.kms.common.BusinessException;
 import com.njupt.kms.qa.index.IndexingService;
 import com.njupt.kms.qa.service.QaHistoryService;
+import com.njupt.kms.qa.service.QaSessionService;
 import com.njupt.kms.qa.dto.QaAskRequest;
 import com.njupt.kms.qa.service.QaService;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
+import static org.mockito.Mockito.mock;
 
 /**
  * 降级行为：RAG 未配置时，问答接口必须给出可读提示而不是 500。
@@ -45,7 +49,11 @@ class QaControllerDegradationTest {
     }
 
     private QaController controller(QaService service) {
-        return new QaController(service, new QaHistoryService(null, null),
+        QaHistoryService history = new QaHistoryService(null, null);
+        // 会话登记是旁路：这里用深桩 Redis，让 checkAccess/touch 走通但不产生真实读写
+        StringRedisTemplate redis = mock(StringRedisTemplate.class, RETURNS_DEEP_STUBS);
+        return new QaController(service, history,
+                new QaSessionService(redis, history),
                 new IndexingService(null, null, Runnable::run,
                         new com.njupt.kms.qa.config.RagProperties(), id -> null));
     }

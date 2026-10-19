@@ -1,5 +1,5 @@
 import { http } from './client'
-import type { QaMessage, QaStatusVO, SourceRef } from '@/types/api'
+import type { QaMessage, QaSession, QaStatusVO, SourceRef } from '@/types/api'
 
 export interface AskCallbacks {
   question: string
@@ -110,5 +110,7 @@ export const qaApi = {
   status: () => http.get<QaStatusVO>('/api/qa/status'),
   reindex: () => http.post<QaStatusVO>('/api/qa/reindex'),
   history: (chatId: string) => http.get<QaMessage[]>(`/api/qa/history/${chatId}`),
-  clearHistory: (chatId: string) => http.del<void>(`/api/qa/history/${chatId}`)
+  clearHistory: (chatId: string) => http.del<void>(`/api/qa/history/${chatId}`),
+  sessions: () => http.get<QaSession[]>('/api/qa/sessions'),
+  deleteSession: (chatId: string) => http.del<void>(`/api/qa/sessions/${chatId}`)
 }

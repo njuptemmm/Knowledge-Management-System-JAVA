@@ -46,10 +46,36 @@ public class QaHistoryService {
     }
 
     public List<QaMessage> history(String chatId) {
+        return readRange(chatId, 0, -1);
+    }
+
+    /**
+     * 最近 n 条消息，用于把前几轮对话喂回模型。
+     *
+     * <p>用 {@code -n .. -1} 取尾部，而不是全量读出来再截断：
+     * 长会话最多 40 条，但每轮真正需要的只是最后几条。
+     */
+    public List<QaMessage> recent(String chatId, int n) {
+        if (n <= 0) {
+            return List.of();
+        }
+        return readRange(chatId, -n, -1);
+    }
+
+    /** 消息条数。会话列表用它显示「N 条消息」。 */
+    public int count(String chatId) {
+        if (!StringUtils.hasText(chatId)) {
+            return 0;
+        }
+        Long size = redisTemplate.opsForList().size(KEY_PREFIX + chatId);
+        return size == null ? 0 : size.intValue();
+    }
+
+    private List<QaMessage> readRange(String chatId, long start, long end) {
         if (!StringUtils.hasText(chatId)) {
             return List.of();
         }
-        List<String> raw = redisTemplate.opsForList().range(KEY_PREFIX + chatId, 0, -1);
+        List<String> raw = redisTemplate.opsForList().range(KEY_PREFIX + chatId, start, end);
         if (raw == null || raw.isEmpty()) {
             return List.of();
         }

@@ -2,6 +2,7 @@ package com.njupt.kms.knowledge.service.impl;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.njupt.kms.common.BusinessException;
+import com.njupt.kms.common.ResultCode;
 import com.njupt.kms.common.event.KnowledgeIndexEvent;
 import com.njupt.kms.knowledge.dto.KnowledgeDetailVO;
 import com.njupt.kms.knowledge.dto.KnowledgeListVO;
@@ -86,9 +87,32 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     @Override
     public KnowledgeDetailVO detail(Long id) {
         KnowledgeItem item = requireExisting(id);
+        assertReadable(item);
         itemMapper.incrementViewCount(id);
         item.setViewCount(item.getViewCount() == null ? 1 : item.getViewCount() + 1);
         return toDetailVO(item);
+    }
+
+    /**
+     * 详情页的可见性校验。
+     *
+     * <p>列表和检索都只返回 PUBLISHED（作者本人除外），但详情是按 id 直取的：
+     * 少了这一步，任何人拿到一个 id 就能读到别人的草稿——列表通过接口约定隐藏了什么，
+     * 详情就漏掉了什么。作者本人和管理员仍需能预览自己的草稿，因此按「作者/管理员」放行。
+     *
+     * <p>拒绝时统一按「不存在」处理，不区分「没有这条」与「无权查看」，
+     * 避免把 id 是否存在变成可探测的信息。
+     */
+    private void assertReadable(KnowledgeItem item) {
+        if (STATUS_PUBLISHED.equals(item.getStatus())) {
+            return;
+        }
+        User current = CurrentUser.get();
+        boolean allowed = current != null
+                && (current.isAdmin() || current.getId().equals(item.getAuthorId()));
+        if (!allowed) {
+            throw new BusinessException(ResultCode.NOT_FOUND, "内容不存在或无权访问");
+        }
     }
 
     @Override

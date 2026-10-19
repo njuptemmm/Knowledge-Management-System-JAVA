@@ -49,6 +49,12 @@ async function load() {
     if (selectedId.value && !flat.value.some((n) => n.id === selectedId.value)) {
       selectedId.value = null
     }
+    // 首次进入默认选中第一个分类：否则右侧只有一个空提示，
+    // 用户会以为这个页面没有实现任何功能
+    if ((!selectedId.value || !flat.value.some((n) => n.id === selectedId.value))
+        && !isCreating.value && tree.value.length) {
+      select(tree.value[0]!.id)
+    }
   } catch (e) {
     error.value = describeError(e)
   } finally {
@@ -69,11 +75,24 @@ function select(id: number | null) {
   }
 }
 
-/** 点「新建子分类」进入新建模式，父分类取当前选中的节点 */
+/**
+ * 进入新建模式。
+ *
+ * <p>新建子分类时保留父节点的选中状态：树上的高亮是「父分类是谁」最直观的说明，
+ * 清掉它会让人不确定新分类挂在哪里。只有新建根分类才清空选择。
+ */
 function startCreate(parentId: number | null) {
-  selectedId.value = null
   creatingUnder.value = parentId
+  if (parentId === null) selectedId.value = null
   form.value = { name: '', sort: 0, description: '' }
+}
+
+/** 放弃新建，回到第一个分类，避免右侧停在空表单上。 */
+function cancelCreate() {
+  creatingUnder.value = undefined
+  selectedId.value = null
+  form.value = { name: '', sort: 0, description: '' }
+  if (tree.value.length) select(tree.value[0]!.id)
 }
 
 const isCreating = computed(() => creatingUnder.value !== undefined)
@@ -87,13 +106,17 @@ async function save() {
   saving.value = true
   try {
     if (isCreating.value) {
-      await categoryApi.create({
+      const created = await categoryApi.create({
         name,
         parentId: creatingUnder.value ?? 0,
         sort: form.value.sort,
         description: form.value.description || undefined
       })
       message.success('已创建')
+      // 创建后切到新节点：停在空白的新建表单上，用户会以为没保存成功
+      creatingUnder.value = undefined
+      await load()
+      select(created.id)
     } else if (selectedId.value) {
       // 后端会忽略 parentId 的变更，这里也不提交它
       await categoryApi.update(selectedId.value, {
@@ -139,29 +162,49 @@ onMounted(load)
 </script>
 
 <template>
-  <AppLayout sidebar-title="分类" :sidebar="true">
+  <!-- keep-sidebar：窄屏下这里是主控件，隐藏后整页无法操作 -->
+  <AppLayout sidebar-title="分类" :sidebar="true" keep-sidebar>
     <template #sidebar>
       <QueryState :loading="loading" :error="error" :empty="false" :on-retry="load">
         <CategoryTree
           :nodes="tree"
           :model-value="selectedId"
           :show-all="false"
-          allow-create
           @update:model-value="select"
-          @create="startCreate"
         />
+        <!-- 根分类与子分类分开两个入口：合并成一个按钮时，
+             用户无法判断当前会建在哪一层 -->
+        <div class="tree-ops">
+          <n-button size="small" block @click="startCreate(null)">+ 新建根分类</n-button>
+          <n-button
+            size="small"
+            block
+            dashed
+            :disabled="!selectedId && !isCreating"
+            @click="startCreate(selectedId)"
+          >
+            + 新建子分类
+          </n-button>
+        </div>
       </QueryState>
     </template>
 
     <h2 class="heading page-section">分类管理</h2>
 
-    <n-alert v-if="!selectedId && !isCreating" type="info" class="page-section" :show-icon="false">
-      从左侧选择一个分类进行编辑，或点击「新建子分类」。
-    </n-alert>
+    <!-- 没有任何分类时给出下一步动作，而不是一句「请从左侧选择」 -->
+    <n-card v-if="!selectedId && !isCreating" class="form-card" :bordered="true">
+      <n-empty :description="tree.length ? '从左侧选择一个分类进行编辑' : '还没有任何分类'">
+        <template #extra>
+          <n-button type="primary" @click="startCreate(null)">+ 新建根分类</n-button>
+        </template>
+      </n-empty>
+    </n-card>
 
     <n-card v-else class="form-card" :bordered="true">
       <div class="form-head">
-        <span>{{ isCreating ? '新建分类' : '编辑分类' }}</span>
+        <span>
+          {{ isCreating ? (creatingUnder === null ? '新建根分类' : '新建子分类') : '编辑分类' }}
+        </span>
       </div>
 
       <n-form label-placement="top">
@@ -196,6 +239,7 @@ onMounted(load)
         <n-button type="primary" :loading="saving" @click="save">
           {{ isCreating ? '创建' : '保存' }}
         </n-button>
+        <n-button v-if="isCreating" @click="cancelCreate">取消</n-button>
         <n-button v-if="!isCreating" type="error" ghost @click="confirmRemove">删除</n-button>
       </div>
 
@@ -215,6 +259,13 @@ onMounted(load)
 .form-card {
   max-width: 520px;
   border-radius: 8px;
+}
+
+.tree-ops {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
 }
 
 .form-head {

@@ -31,7 +31,7 @@ class AuthServiceTest {
     private User user(String rawPassword) {
         User u = new User();
         u.setId(2L);
-        u.setUsername("zhangsan");
+        u.setUsername("user");
         u.setPasswordHash(ENCODER.encode(rawPassword));
         u.setRole("USER");
         u.setStatus(1);
@@ -42,7 +42,7 @@ class AuthServiceTest {
     void login_returns_token_on_correct_password() {
         when(userMapper.selectOne(any())).thenReturn(user("user123"));
 
-        String token = authService.login("zhangsan", "user123");
+        String token = authService.login("user", "user123");
 
         assertThat(token).isNotBlank();
         verify(tokenStore).save(eq(token), eq(2L));
@@ -52,7 +52,7 @@ class AuthServiceTest {
     void login_rejects_wrong_password() {
         when(userMapper.selectOne(any())).thenReturn(user("user123"));
 
-        assertThatThrownBy(() -> authService.login("zhangsan", "wrong"))
+        assertThatThrownBy(() -> authService.login("user", "wrong"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("用户名或密码错误");
     }
@@ -73,7 +73,7 @@ class AuthServiceTest {
         disabled.setStatus(0);
         when(userMapper.selectOne(any())).thenReturn(disabled);
 
-        assertThatThrownBy(() -> authService.login("zhangsan", "user123"))
+        assertThatThrownBy(() -> authService.login("user", "user123"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("账号已被禁用");
     }
@@ -99,7 +99,7 @@ class AuthServiceTest {
         User resolved = authService.resolve("tok");
 
         assertThat(resolved).isNotNull();
-        assertThat(resolved.getUsername()).isEqualTo("zhangsan");
+        assertThat(resolved.getUsername()).isEqualTo("user");
     }
 
     @Test

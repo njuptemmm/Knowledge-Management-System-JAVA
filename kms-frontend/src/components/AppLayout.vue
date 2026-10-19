@@ -11,8 +11,15 @@ const props = withDefaults(
     sidebar?: boolean
     /** 侧栏标题 */
     sidebarTitle?: string
+    /**
+     * 窄屏（≤1024px）是否保留侧栏。
+     *
+     * <p>默认隐藏，给内容让位。但分类管理页的侧栏就是主控件——
+     * 隐藏后既看不到分类树，也点不到「新建」，整页变成死路。
+     */
+    keepSidebar?: boolean
   }>(),
-  { sidebar: undefined, sidebarTitle: '分类' }
+  { sidebar: undefined, sidebarTitle: '分类', keepSidebar: false }
 )
 
 const slots = useSlots()
@@ -30,6 +37,13 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const message = useMessage()
+
+/**
+ * 搜索页自己带一个搜索框（和筛选条件排在一起），顶栏若同时保留输入框，
+ * 页面上就有两个功能重复的框，用户不知道用哪个。
+ * 只保留页面内的那个：搜索页隐藏顶栏搜索，其它页面照常显示。
+ */
+const showTopSearch = computed(() => route.name !== 'search')
 
 const keyword = ref((route.query.keyword as string) ?? '')
 watch(
@@ -78,7 +92,7 @@ function goLogin() {
     <header class="topbar">
       <div class="brand" @click="router.push('/')">知识管理系统</div>
 
-      <div class="search">
+      <div v-if="showTopSearch" class="search">
         <n-input
           v-model:value="keyword"
           placeholder="搜索知识库，回车确认"
@@ -99,7 +113,7 @@ function goLogin() {
     </header>
 
     <div class="body">
-      <aside v-if="showSidebar" class="sidebar">
+      <aside v-if="showSidebar" class="sidebar" :class="{ 'sidebar-keep': keepSidebar }">
         <div class="sidebar-title">{{ props.sidebarTitle }}</div>
         <slot name="sidebar" />
       </aside>
@@ -179,10 +193,15 @@ function goLogin() {
   padding: 16px 20px 40px;
 }
 
-/* 窄屏收起侧栏：分类树是辅助导航，内容优先 */
+/* 窄屏收起侧栏：分类树是辅助导航，内容优先。
+   分类管理页例外——那里侧栏是主控件，用 sidebar-keep 保住。 */
 @media (max-width: 1024px) {
-  .sidebar {
+  .sidebar:not(.sidebar-keep) {
     display: none;
+  }
+  .sidebar-keep {
+    width: 180px;
+    flex: 0 0 180px;
   }
   .content {
     padding: 12px;

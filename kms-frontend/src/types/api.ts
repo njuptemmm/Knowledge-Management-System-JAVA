@@ -135,6 +135,15 @@ export interface QaMessage {
   at: string
 }
 
+/** 会话列表项。正文走 history 接口，列表不带。 */
+export interface QaSession {
+  chatId: string
+  title: string
+  messageCount: number
+  createdAt: string
+  updatedAt: string
+}
+
 export interface QaStatusVO {
   enabled: boolean
   indexedItems: number

@@ -598,7 +598,7 @@ def main():
         return 2
 
     admin = login("admin", "admin123")
-    user = login("zhangsan", "user123")
+    user = login("user", "user123")
     if not admin or not user:
         print("\n登录失败，请确认数据库已执行 seed.sql")
         return 2

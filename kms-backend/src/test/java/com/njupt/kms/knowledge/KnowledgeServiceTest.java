@@ -171,6 +171,25 @@ class KnowledgeServiceTest {
     }
 
     @Test
+    void detail_hides_draft_from_anonymous_and_other_users() {
+        when(itemMapper.selectById(1L)).thenReturn(item(1L, 2L));
+
+        // 匿名：草稿不在任何公开列表里，按 id 直取也不该拿到
+        assertThatThrownBy(() -> knowledgeService.detail(1L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("内容不存在或无权访问");
+
+        // 其他登录用户：同样拒绝
+        loginAs(3L, "USER");
+        assertThatThrownBy(() -> knowledgeService.detail(1L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("内容不存在或无权访问");
+
+        // 既没加浏览量，也没把内容发出去
+        verify(itemMapper, never()).incrementViewCount(any());
+    }
+
+    @Test
     void detail_rejects_missing_item() {
         loginAs(2L, "USER");
         when(itemMapper.selectById(99L)).thenReturn(null);

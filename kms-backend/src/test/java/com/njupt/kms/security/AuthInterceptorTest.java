@@ -39,8 +39,8 @@ class AuthInterceptorTest {
 
     @Test
     void sets_current_user_from_a_valid_token() {
-        User zhangsan = user(2L, "zhangsan");
-        when(authService.resolve("tok")).thenReturn(zhangsan);
+        User normalUser = user(2L, "user");
+        when(authService.resolve("tok")).thenReturn(normalUser);
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Authorization", "tok");
@@ -48,7 +48,7 @@ class AuthInterceptorTest {
         interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
 
         assertThat(CurrentUser.get()).isNotNull();
-        assertThat(CurrentUser.get().getUsername()).isEqualTo("zhangsan");
+        assertThat(CurrentUser.get().getUsername()).isEqualTo("user");
     }
 
     @Test
@@ -56,7 +56,7 @@ class AuthInterceptorTest {
         // 回归测试：ThreadLocal 残留会造成身份串号。
         // 实测出现过「上一个请求的身份被匿名请求继承」，导致未登录也能调用
         // 需要登录的接口。preHandle 必须无条件赋值，而不是「有 token 才赋值」。
-        CurrentUser.set(user(2L, "zhangsan"));
+        CurrentUser.set(user(2L, "user"));
 
         MockHttpServletRequest request = new MockHttpServletRequest();   // 不带 Authorization
 
@@ -72,7 +72,7 @@ class AuthInterceptorTest {
     @Test
     void invalid_token_clears_identity_instead_of_leaving_the_previous_one() {
         when(authService.resolve("expired")).thenReturn(null);
-        CurrentUser.set(user(2L, "zhangsan"));
+        CurrentUser.set(user(2L, "user"));
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Authorization", "expired");
@@ -84,7 +84,7 @@ class AuthInterceptorTest {
 
     @Test
     void after_completion_clears_the_context() {
-        CurrentUser.set(user(2L, "zhangsan"));
+        CurrentUser.set(user(2L, "user"));
 
         interceptor.afterCompletion(new MockHttpServletRequest(), new MockHttpServletResponse(),
                 new Object(), null);
@@ -95,7 +95,7 @@ class AuthInterceptorTest {
     @Test
     void async_handling_start_releases_the_threads_identity() {
         // SSE 问答会把线程交还给线程池，此时不清理就会串号
-        CurrentUser.set(user(2L, "zhangsan"));
+        CurrentUser.set(user(2L, "user"));
 
         interceptor.afterConcurrentHandlingStarted(new MockHttpServletRequest(),
                 new MockHttpServletResponse(), new Object());

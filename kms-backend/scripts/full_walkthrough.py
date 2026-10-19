@@ -123,7 +123,7 @@ def main():
     admin = r.get("data", {}).get("token")
     step("管理员登录", bool(admin), "角色 %s" % r.get("data", {}).get("user", {}).get("role"))
 
-    _, r = call("POST", "/api/auth/login", body={"username": "zhangsan", "password": "user123"})
+    _, r = call("POST", "/api/auth/login", body={"username": "user", "password": "user123"})
     user = r.get("data", {}).get("token")
     step("普通用户登录", bool(user), "昵称 %s" % r.get("data", {}).get("user", {}).get("nickname"))
 

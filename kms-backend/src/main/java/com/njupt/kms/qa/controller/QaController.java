@@ -2,12 +2,15 @@ package com.njupt.kms.qa.controller;
 
 import com.njupt.kms.common.BusinessException;
 import com.njupt.kms.common.Result;
+import com.njupt.kms.common.ResultCode;
 import com.njupt.kms.qa.dto.QaMessage;
+import com.njupt.kms.qa.dto.QaSessionVO;
 import com.njupt.kms.qa.dto.QaStatusVO;
 import com.njupt.kms.qa.index.IndexStatus;
 import com.njupt.kms.qa.index.IndexingService;
 import com.njupt.kms.qa.service.QaHistoryService;
 import com.njupt.kms.qa.service.QaService;
+import com.njupt.kms.qa.service.QaSessionService;
 import com.njupt.kms.security.CurrentUser;
 import com.njupt.kms.qa.dto.QaAskRequest;
 import jakarta.validation.Valid;
@@ -44,6 +47,7 @@ public class QaController {
 
     private final QaService qaService;
     private final QaHistoryService historyService;
+    private final QaSessionService sessionService;
     private final IndexingService indexingService;
 
     /**
@@ -66,6 +70,13 @@ public class QaController {
                 : UUID.randomUUID().toString().replace("-", "");
 
         try {
+            // 续聊别人的会话必须被拒绝；新建会话时元数据为空，检查直接放行
+            sessionService.checkAccess(conversationId);
+
+            // 先登记会话（归属 + 标题），再开始生成：
+            // 生成阶段可能失败，但会话本身已经产生，用户应该能在列表里看到它
+            sessionService.touch(conversationId, question);
+
             // 可见性判定发生在 RetrievalService 内部（按 CurrentUser）
             QaService.QaAnswer answer = qaService.ask(question, conversationId);
 
@@ -104,13 +115,29 @@ public class QaController {
                 .data(Map.of("message", message)).build());
     }
 
+    /** 当前用户的会话列表，按最后活跃时间倒序。未登录返回空列表。 */
+    @GetMapping("/sessions")
+    public Result<List<QaSessionVO>> sessions() {
+        return Result.ok(sessionService.list());
+    }
+
+    /** 删除会话：元数据与消息一并清除。 */
+    @DeleteMapping("/sessions/{chatId}")
+    public Result<Void> deleteSession(@PathVariable String chatId) {
+        sessionService.checkAccess(chatId);
+        sessionService.delete(chatId);
+        return Result.ok();
+    }
+
     @GetMapping("/history/{chatId}")
     public Result<List<QaMessage>> history(@PathVariable String chatId) {
+        sessionService.checkAccess(chatId);
         return Result.ok(historyService.history(chatId));
     }
 
     @DeleteMapping("/history/{chatId}")
     public Result<Void> clearHistory(@PathVariable String chatId) {
+        sessionService.checkAccess(chatId);
         historyService.clear(chatId);
         return Result.ok();
     }
@@ -122,13 +149,17 @@ public class QaController {
     }
 
     /**
-     * 全量重建索引。需登录。
+     * 全量重建索引。仅管理员。
      *
-     * <p>耗时较长（并发下 500 块约 25 秒），前端需要给出明确的等待反馈。
+     * <p>耗时较长（并发下 500 块约 25 秒），且会打满向量服务配额。
+     * 前端只在管理员菜单里显示入口，但权限不能只靠前端隐藏——
+     * 任何登录用户都能直接发请求，所以后端必须再判一次角色。
      */
     @PostMapping("/reindex")
     public Result<QaStatusVO> reindex() {
-        CurrentUser.getRequired();
+        if (!CurrentUser.getRequired().isAdmin()) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "只有管理员可以重建索引");
+        }
         return Result.ok(toVO(indexingService.rebuildAll()));
     }
 

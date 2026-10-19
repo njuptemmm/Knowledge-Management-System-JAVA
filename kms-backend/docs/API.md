@@ -420,6 +420,24 @@ for (;;) {
 > **注意**：答案正文里的 `[1]` `[2]` 是引用标记，对应 `sources` 数组的下标加一。
 > 前端应把它们渲染成可点击的引用角标，点击跳转到 `/api/knowledge/{itemId}`。
 
+### GET `/api/qa/sessions`
+
+当前登录用户的会话列表，按最后活跃时间倒序；未登录返回空数组。
+
+```json
+{ "code": 0, "message": "ok",
+  "data": [{ "chatId": "9f2c…", "title": "MySQL 索引用了什么数据结构？",
+             "messageCount": 6, "createdAt": "2026-10-19T21:03:00.1",
+             "updatedAt": "2026-10-20T00:02:11.4" }] }
+```
+
+列表只带摘要，正文走 `history` 接口。会话在第一次提问时自动创建，
+标题取该问题前 24 字；单用户最多保留 50 个会话，超出后最久未活跃的被裁剪。
+
+### DELETE `/api/qa/sessions/{chatId}`
+
+删除会话的元数据与消息。仅会话所有者或管理员可操作。
+
 ### GET `/api/qa/history/{chatId}` / DELETE `/api/qa/history/{chatId}`
 
 返回/清空会话历史。每条消息形如：
@@ -429,6 +447,13 @@ for (;;) {
   "sources": [{"itemId": 9, "title": "MySQL 索引原理", "headingPath": "为什么用 B+ 树", "score": 0.71}],
   "at": "2026-10-14T01:49:00.123" }
 ```
+
+**会话归属**：登录用户创建的会话只能由本人（或管理员）续聊、回看、删除；
+匿名会话不属于任何账号，凭 `chatId` 访问。`chatId` 是 32 位随机串，不可枚举。
+
+**多轮记忆**：同一 `chatId` 下，最近 8 条消息（约 4 轮）会作为对话历史
+连同本轮检索资料一起送给模型，用于消解「它」「这个方法」这类指代。
+历史只提供上下文，答案的事实依据仍只来自本轮检索到的资料。
 
 会话保留 7 天，单会话最多 40 条消息。
 
@@ -442,7 +467,7 @@ for (;;) {
 
 `enabled=false` 时前端应隐藏问答入口或提示未配置。
 
-### POST `/api/qa/reindex` （需登录）
+### POST `/api/qa/reindex` （仅管理员）
 
 全量重建索引。**耗时十余秒**（17 个条目约 12 秒），前端必须给出明确的等待反馈，
 不能只显示一个转圈图标而没有文案。
@@ -473,10 +498,12 @@ for (;;) {
 | POST | `/api/knowledge/{id}/restore` | 需登录（作者/管理员） |
 | GET | `/api/search` | 公开（未登录只见 PUBLISHED） |
 | POST | `/api/qa/ask` | 公开（未登录只见 PUBLISHED 内容） |
-| GET | `/api/qa/history/{chatId}` | 需登录 |
-| DELETE | `/api/qa/history/{chatId}` | 需登录 |
+| GET | `/api/qa/sessions` | 公开（未登录返回空） |
+| DELETE | `/api/qa/sessions/{chatId}` | 本人/管理员 |
+| GET | `/api/qa/history/{chatId}` | 公开（登录用户的会话仅本人/管理员） |
+| DELETE | `/api/qa/history/{chatId}` | 同上 |
 | GET | `/api/qa/status` | 公开 |
-| POST | `/api/qa/reindex` | 需登录 |
+| POST | `/api/qa/reindex` | 仅管理员 |
 | GET | `/api/tags` | 公开 |
 | POST | `/api/attachments/upload` | 需登录（作者/管理员） |
 | GET | `/api/attachments/{id}/text` | 需登录 |
@@ -491,9 +518,9 @@ for (;;) {
 | 用户名 | 密码 | 角色 |
 |---|---|---|
 | `admin` | `admin123` | ADMIN |
-| `zhangsan` | `user123` | USER |
+| `user` | `user123` | USER |
 
-`zhangsan` 用于验证越权路径：他修改/删除 `admin` 的条目会被拒绝。
+`user` 用于验证越权路径：他修改/删除 `admin` 的条目会被拒绝。
 
 ---
 

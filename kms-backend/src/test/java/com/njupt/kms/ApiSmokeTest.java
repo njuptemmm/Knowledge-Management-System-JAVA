@@ -194,8 +194,8 @@ class ApiSmokeTest {
     @Test
     @Order(12)
     void forbidden_operation_returns_clear_message() throws Exception {
-        String other = login("zhangsan", "user123");
-        // seed 中 id=1 的条目作者是 admin，zhangsan 无权归档
+        String other = login("user", "user123");
+        // seed 中 id=1 的条目作者是 admin，user 无权归档
         mockMvc.perform(post("/api/knowledge/2/archive").header("Authorization", other))
                 .andExpect(jsonPath("$.code").value(2000))
                 .andExpect(jsonPath("$.message").value("无权操作他人的知识条目"));

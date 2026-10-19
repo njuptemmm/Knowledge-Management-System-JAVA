@@ -75,8 +75,8 @@ function fill(name: string, pwd: string) {
         <n-button size="small" quaternary @click="fill('admin', 'admin123')">
           管理员 admin / admin123
         </n-button>
-        <n-button size="small" quaternary @click="fill('zhangsan', 'user123')">
-          普通用户 zhangsan / user123
+        <n-button size="small" quaternary @click="fill('user', 'user123')">
+          普通用户 user / user123
         </n-button>
       </div>
 

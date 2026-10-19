@@ -1,5 +1,5 @@
 -- 知识管理系统 测试数据
--- 密码明文：admin -> admin123 ； zhangsan -> user123
+-- 密码明文：admin -> admin123 ； user -> user123
 -- 哈希由 BCryptPasswordEncoder 生成（见计划 Task 2 Step 3）
 --
 -- 注意：正文刻意写成有实质解释的内容，而不是话题清单。
@@ -17,7 +17,7 @@ DELETE FROM `user`;
 
 INSERT INTO `user` (id, username, password_hash, nickname, role, status) VALUES
   (1, 'admin', '$2a$10$ThpvQL7kiOIDxRsCxc6y/Oz5PWRqsdjXNjBt36FXstVtGbHDIvhm2', '管理员', 'ADMIN', 1),
-  (2, 'zhangsan', '$2a$10$jcnN9Ud4ymmu2.Nq9i3cse7rZFDpQi85LWt.dZeU/fDStKHDyk7WC', '张三', 'USER', 1);
+  (2, 'user', '$2a$10$jcnN9Ud4ymmu2.Nq9i3cse7rZFDpQi85LWt.dZeU/fDStKHDyk7WC', 'user', 'USER', 1);
 
 -- 分类树：3 级层次
 INSERT INTO category (id, name, parent_id, level, sort, description) VALUES

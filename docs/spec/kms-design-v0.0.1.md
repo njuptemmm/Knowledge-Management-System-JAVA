@@ -242,7 +242,7 @@ public class SearchServiceImpl implements SearchService {
 | 依赖 | 方式 |
 |---|---|
 | MySQL | MyBatis-Plus + HikariCP 连接池 |
-| Redis | Spring Data Redis（Lettuce）；用于登录会话与分类树缓存 |
+| Redis | Spring Data Redis（Lettuce）；用于登录会话。分类树缓存为**预留能力，v0.0.1 未启用**：分类仅十余条，单次索引查询即可完成组装，上缓存的收益不抵增删改三处失效维护的复杂度 |
 
 ### 4.4 跨模块异步
 
@@ -584,7 +584,7 @@ ORDER BY score DESC, k.updated_at DESC
 | 后端框架 | Spring Boot | 3.5.3 | 与参考项目同构，骨架可直接借鉴 |
 | 持久层 | MyBatis-Plus | 3.5.10.1 | 单表 CRUD 免写 SQL，复杂查询手写 |
 | 数据库 | MySQL | 8.x | 全文索引 + ngram 满足中文检索 |
-| 缓存 | Redis | — | 会话存储 + 分类树缓存 |
+| 缓存 | Redis | — | 会话存储；分类树缓存预留未启用 |
 | 前端框架 | Vue | 3.4+ | 参考项目已验证 |
 | 构建 | Vite | 6.x | — |
 | UI 组件库 | naive-ui | 2.41+ | 组件完备，出界面快（对应评分项 3） |
